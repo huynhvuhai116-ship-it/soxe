@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Quản Lý Điều Xe</title>
+<title>Quản Lý Đặt Xe</title>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -186,9 +186,10 @@
     </div>
     <div class="fg">
       <label>🏭 Kho bốc hàng</label>
-      <select id="warehouseSelect">
+      <select id="warehouseSelect" onchange="onWarehouseChange()">
         <option value="">-- Chọn kho bốc hàng --</option>
       </select>
+      <input type="text" id="warehouseCustom" placeholder="Nhập tên kho..." style="display:none;margin-top:8px">
     </div>
     <div class="row2">
       <div class="fg"><label>Ngày vận chuyển *</label><input type="date" id="shipDate"></div>
@@ -384,12 +385,46 @@ const SCRIPT = `function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // Sheet DonHang
     var os = ss.getSheetByName('DonHang') || ss.insertSheet('DonHang');
-    if (os.getLastRow()===0) os.appendRow(['Ngay tao','Ma DH','Ten khach','Kho boc','Ngay vc','Ghi chu']);
+    var ohdr = ['Ngay tao','Ma DH','Ten khach','Kho boc','Ngay vc','Ghi chu'];
+    if (os.getLastRow() === 0) {
+      os.appendRow(ohdr);
+    } else {
+      var curO = os.getRange(1,1,1,ohdr.length).getValues()[0];
+      if (!ohdr.every(function(v,i){return curO[i]===v;})) os.getRange(1,1,1,ohdr.length).setValues([ohdr]);
+    }
     os.appendRow([new Date().toLocaleString('vi-VN'), data.orderCode||'', data.customerName, data.warehouse||'', data.shipDate, data.orderNote||'']);
+
+    // Sheet ChuyenXe
     var ts = ss.getSheetByName('ChuyenXe') || ss.insertSheet('ChuyenXe');
-    if (ts.getLastRow()===0) ts.appendRow(['Ngay tao','Ma DH','Khach','Chuyen','So xe','Loai xe','Tuyen','Lai xe','SDT','CCCD','Diem giao','Gio','Ghi chu']);
-    data.trips.forEach(function(t,i){ ts.appendRow([new Date().toLocaleString('vi-VN'), data.orderCode||'', data.customerName, i+1, t.plate, t.type||'', t.route||'', t.driver, t.phone, t.cccd||'', t.delivery||'', t.time||'', t.note||'']); });
+    var thdr = ['Ngay tao','Ma DH','Khach','Kho boc','Chuyen','So xe','Loai xe','Tuyen','Lai xe','SDT','CCCD','Diem giao','Khung gio','Ghi chu'];
+    if (ts.getLastRow() === 0) {
+      ts.appendRow(thdr);
+    } else {
+      var curT = ts.getRange(1,1,1,thdr.length).getValues()[0];
+      if (!thdr.every(function(v,i){return curT[i]===v;})) ts.getRange(1,1,1,thdr.length).setValues([thdr]);
+    }
+    data.trips.forEach(function(t,i){
+      ts.appendRow([
+        new Date().toLocaleString('vi-VN'),
+        data.orderCode||'',
+        data.customerName,
+        data.warehouse||'',
+        i+1,
+        t.plate,
+        t.type||'',
+        t.route||'',
+        t.driver,
+        t.phone,
+        t.cccd||'',
+        t.delivery||'',
+        t.time||'',
+        t.note||''
+      ]);
+    });
+
     return ContentService.createTextOutput(JSON.stringify({status:'success'})).setMimeType(ContentService.MimeType.JSON);
   } catch(err) {
     return ContentService.createTextOutput(JSON.stringify({status:'error',msg:err.toString()})).setMimeType(ContentService.MimeType.JSON);
@@ -543,6 +578,28 @@ function renderWarehouseSelect() {
   warehouses.forEach(function(w) {
     sel.innerHTML += '<option value="' + w + '">' + w + '</option>';
   });
+  sel.innerHTML += '<option value="__custom__">✏️ Tự ghi kho khác...</option>';
+}
+
+function onWarehouseChange() {
+  var sel    = document.getElementById('warehouseSelect');
+  var custom = document.getElementById('warehouseCustom');
+  if (sel.value === '__custom__') {
+    custom.style.display = '';
+    custom.focus();
+  } else {
+    custom.style.display = 'none';
+    custom.value = '';
+  }
+}
+
+function getWarehouse() {
+  var sel = document.getElementById('warehouseSelect');
+  if (!sel) return '';
+  if (sel.value === '__custom__') {
+    return document.getElementById('warehouseCustom').value.trim();
+  }
+  return sel.value;
 }
 
 function savePlates()  { localStorage.setItem('plates',  JSON.stringify(plates));  }
@@ -686,20 +743,28 @@ function addTrip() {
     '<div class="trip-num">🚛 Chuyến ' + n + '</div>' +
     (n > 1 ? '<button class="trip-rm" onclick="removeTrip(' + n + ')">✕</button>' : '') +
 
-    // SỐ XE — dropdown riêng
+    // SỐ XE — dropdown + tự ghi
     '<div class="fg">' +
       '<label>🚘 Số xe *</label>' +
-      '<select class="sel-plate" id="selPlate-' + n + '">' + plateOptions() + '</select>' +
+      '<select class="sel-plate" id="selPlate-' + n + '" onchange="onPlateChange(' + n + ')">' + plateOptions() + '<option value="__custom__">✏️ Tự ghi số xe...</option></select>' +
+      '<input type="text" id="plateCus-' + n + '" placeholder="Nhập biển số xe..." style="display:none;margin-top:8px;text-transform:uppercase">' +
     '</div>' +
 
-    // LÁI XE — dropdown riêng + nút gọi
+    // LÁI XE — dropdown + tự ghi + nút gọi
     '<div class="fg" style="margin-top:2px">' +
       '<label>👤 Lái xe *</label>' +
       '<div class="driver-row">' +
         '<div class="fg" style="margin-bottom:0">' +
-          '<select class="sel-driver" id="selDriver-' + n + '" data-trip-id="' + n + '" onchange="updateCallBtn(' + n + ')">' + driverOptions() + '</select>' +
+          '<select class="sel-driver" id="selDriver-' + n + '" data-trip-id="' + n + '" onchange="onDriverChange(' + n + ')">' + driverOptions() + '<option value="__custom__">✏️ Tự ghi lái xe...</option></select>' +
         '</div>' +
         '<button type="button" class="btn-call inactive" id="callBtn-' + n + '" onclick="callDriver(' + n + ')" title="Gọi điện lái xe">📞</button>' +
+      '</div>' +
+      '<div id="driverCusBox-' + n + '" style="display:none;margin-top:8px;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;padding:10px;">' +
+        '<div class="row2">' +
+          '<div class="fg" style="margin-bottom:8px"><label style="font-size:11px">Tên lái xe</label><input type="text" id="driverCusName-' + n + '" placeholder="Nguyễn Văn A"></div>' +
+          '<div class="fg" style="margin-bottom:8px"><label style="font-size:11px">Số điện thoại</label><input type="tel" id="driverCusPhone-' + n + '" placeholder="0909..." inputmode="tel" onchange="updateCallBtnCustom(' + n + ')"></div>' +
+        '</div>' +
+        '<div class="fg" style="margin-bottom:0"><label style="font-size:11px">Số CCCD</label><input type="text" id="driverCusCccd-' + n + '" placeholder="012345678901" inputmode="numeric" maxlength="12"></div>' +
       '</div>' +
     '</div>' +
 
@@ -722,13 +787,41 @@ function addTrip() {
     '</div>';
 
   document.getElementById('tripsList').appendChild(div);
+  var plateCusEl = document.getElementById('plateCus-' + n);
+  if (plateCusEl) plateCusEl.addEventListener('input', function(){ this.value = this.value.toUpperCase(); });
   renumber();
+}
+
+function onPlateChange(n) {
+  var sel = document.getElementById('selPlate-' + n);
+  var cus = document.getElementById('plateCus-' + n);
+  if (sel.value === '__custom__') { cus.style.display=''; cus.focus(); }
+  else { cus.style.display='none'; cus.value=''; }
+}
+
+function onDriverChange(n) {
+  var sel = document.getElementById('selDriver-' + n);
+  var box = document.getElementById('driverCusBox-' + n);
+  if (sel.value === '__custom__') { box.style.display=''; }
+  else { box.style.display='none'; }
+  updateCallBtn(n);
+}
+
+function updateCallBtnCustom(n) {
+  var phone = (document.getElementById('driverCusPhone-' + n) || {value:''}).value.trim();
+  var btn   = document.getElementById('callBtn-' + n);
+  if (btn) btn.className = phone ? 'btn-call active' : 'btn-call inactive';
 }
 
 function updateCallBtn(n) {
   var sel = document.getElementById('selDriver-' + n);
   var btn = document.getElementById('callBtn-' + n);
   if (!sel || !btn) return;
+  if (sel.value === '__custom__') {
+    var phone = (document.getElementById('driverCusPhone-' + n) || {value:''}).value.trim();
+    btn.className = phone ? 'btn-call active' : 'btn-call inactive';
+    return;
+  }
   var id = parseInt(sel.value);
   if (!id) { btn.className = 'btn-call inactive'; return; }
   var d = drivers.find(function(x){ return x.id === id; });
@@ -737,8 +830,15 @@ function updateCallBtn(n) {
 
 function callDriver(n) {
   var sel = document.getElementById('selDriver-' + n);
-  var id  = sel ? parseInt(sel.value) : 0;
-  var d   = drivers.find(function(x){ return x.id === id; });
+  if (!sel) return;
+  if (sel.value === '__custom__') {
+    var phone = (document.getElementById('driverCusPhone-' + n) || {value:''}).value.trim();
+    if (!phone) { showToast('⚠️ Chưa nhập SĐT lái xe'); return; }
+    window.location.href = 'tel:' + phone;
+    return;
+  }
+  var id = sel ? parseInt(sel.value) : 0;
+  var d  = drivers.find(function(x){ return x.id === id; });
   if (!d) { showToast('⚠️ Chưa chọn lái xe'); return; }
   window.location.href = 'tel:' + d.phone;
 }
@@ -760,19 +860,38 @@ function getTrips() {
   var trips = [];
   document.querySelectorAll('.trip-card').forEach(function(card) {
     var n  = card.id.replace('trip-', '');
-    var pid = parseInt((document.getElementById('selPlate-' + n) || {}).value || 0);
-    var did = parseInt((document.getElementById('selDriver-' + n) || {}).value || 0);
-    var p   = plates.find(function(x){ return x.id === pid; });
-    var d   = drivers.find(function(x){ return x.id === did; });
+    var plateSelVal  = (document.getElementById('selPlate-'  + n) || {value:''}).value;
+    var driverSelVal = (document.getElementById('selDriver-' + n) || {value:''}).value;
+    var plateVal, typeVal, driverVal, phoneVal, cccdVal;
+    if (plateSelVal === '__custom__') {
+      plateVal = ((document.getElementById('plateCus-' + n) || {value:''}).value).trim().toUpperCase();
+      typeVal  = '';
+    } else {
+      var pid = parseInt(plateSelVal || 0);
+      var p   = plates.find(function(x){ return x.id === pid; });
+      plateVal = p ? p.plate : '';
+      typeVal  = p ? p.type  : '';
+    }
+    if (driverSelVal === '__custom__') {
+      driverVal = ((document.getElementById('driverCusName-'  + n) || {value:''}).value).trim();
+      phoneVal  = ((document.getElementById('driverCusPhone-' + n) || {value:''}).value).trim();
+      cccdVal   = ((document.getElementById('driverCusCccd-'  + n) || {value:''}).value).trim();
+    } else {
+      var did = parseInt(driverSelVal || 0);
+      var d   = drivers.find(function(x){ return x.id === did; });
+      driverVal = d ? d.name  : '';
+      phoneVal  = d ? d.phone : '';
+      cccdVal   = d ? (d.cccd || '') : '';
+    }
     trips.push({
-      plate:  p ? p.plate : '',
-      type:   p ? p.type  : '',
-      driver: d ? d.name  : '',
-      phone:  d ? d.phone : '',
+      plate:    plateVal,
+      type:     typeVal,
+      driver:   driverVal,
+      phone:    phoneVal,
+      cccd:     cccdVal,
       route:    (document.getElementById('route-'    + n) || {value:''}).value.trim(),
       time:     (document.getElementById('time-'     + n) || {value:''}).value,
       delivery: (document.getElementById('delivery-' + n) || {value:''}).value.trim(),
-      cccd:     d ? (d.cccd || '') : '',
       note:     (document.getElementById('note-'     + n) || {value:''}).value.trim()
     });
   });
@@ -830,7 +949,7 @@ function showPreview() {
 
 function copyPreview() {
   var cust  = getCustomerName();
-  var wh    = document.getElementById('warehouseSelect').value;
+  var wh    = getWarehouse();
   var date  = document.getElementById('shipDate').value;
   var code  = document.getElementById('orderCode').value.trim();
   var note  = document.getElementById('orderNote').value.trim();
@@ -883,7 +1002,7 @@ function setSheetStatus(ok) {
 async function saveToSheet() {
   if (!sheetUrl) { showToast('⚠️ Chưa cài Google Sheet URL'); document.getElementById('sheetCard').scrollIntoView({behavior:'smooth'}); return; }
   var cust  = getCustomerName();
-  var wh    = document.getElementById('warehouseSelect').value;
+  var wh    = getWarehouse();
   var date  = document.getElementById('shipDate').value;
   if (!cust || !date) { showToast('⚠️ Nhập đủ thông tin đơn hàng'); return; }
   var trips = getTrips();
