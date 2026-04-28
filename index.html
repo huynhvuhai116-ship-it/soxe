@@ -74,6 +74,10 @@
   .btn-primary { background: var(--primary); color: #fff; }
   .btn-success { background: var(--success); color: #fff; }
   .btn-sm { padding: 7px 12px; font-size: 12px; }
+  .custom-box { display:none; margin-top:8px; background:#f0f9ff; border:1.5px solid #bae6fd; border-radius:10px; padding:11px 12px; }
+  .custom-box .fg { margin-bottom:8px; }
+  .custom-box .fg:last-child { margin-bottom:0; }
+  .custom-box .fg label { font-size:11px; }
   .btn-success { background: var(--success); color: #fff; }
   .loading-spin { display:inline-block; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -186,10 +190,9 @@
     </div>
     <div class="fg">
       <label>🏭 Kho bốc hàng</label>
-      <select id="warehouseSelect" onchange="onWarehouseChange()">
+      <select id="warehouseSelect">
         <option value="">-- Chọn kho bốc hàng --</option>
       </select>
-      <input type="text" id="warehouseCustom" placeholder="Nhập tên kho..." style="display:none;margin-top:8px">
     </div>
     <div class="row2">
       <div class="fg"><label>Ngày vận chuyển *</label><input type="date" id="shipDate"></div>
@@ -319,6 +322,7 @@
       </div>
     </div>
     <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" onclick="resetToDefault()" style="color:var(--danger);border-color:var(--danger)">🔄 Mặc định</button>
       <button class="btn btn-primary" onclick="closeModal('manageModal')" style="flex:1;justify-content:center">✓ Xong</button>
     </div>
   </div>
@@ -352,79 +356,65 @@ let plates  = JSON.parse(localStorage.getItem('plates')  || '[]');
 let drivers = JSON.parse(localStorage.getItem('drivers') || '[]');
 
 // Dữ liệu mẫu nếu lần đầu dùng
-if (plates.length === 0) {
-  plates = [
-    { id: 1,  plate: '29H-77696', type: '' },
-    { id: 2,  plate: '29E-12900', type: '' },
-    { id: 3,  plate: '29C-18487', type: '' },
-    { id: 4,  plate: '29C-36832', type: '' },
-    { id: 5,  plate: '29E-12960', type: '' },
-    { id: 6,  plate: '29E-11431', type: '' },
-    { id: 7,  plate: '30M-84876', type: '' },
-    { id: 8,  plate: '30M-85015', type: '' },
-    { id: 9,  plate: '30M-87069', type: '' },
-  ];
+// ── Dữ liệu mặc định (tăng DATA_VERSION khi muốn reset cache) ──
+var DATA_VERSION = '2';
+var DEFAULT_PLATES = [
+  { id: 1,  plate: '29H-77696', type: '' },
+  { id: 2,  plate: '29E-12900', type: '' },
+  { id: 3,  plate: '29C-18487', type: '' },
+  { id: 4,  plate: '29C-36832', type: '' },
+  { id: 5,  plate: '29E-12960', type: '' },
+  { id: 6,  plate: '29E-11431', type: '' },
+  { id: 7,  plate: '30M-84876', type: '' },
+  { id: 8,  plate: '30M-85015', type: '' },
+  { id: 9,  plate: '30M-87069', type: '' },
+];
+var DEFAULT_DRIVERS = [
+  { id: 1, name: 'Ngô Hoàng Vũ',      phone: '0559827827', cccd: '079083034316' },
+  { id: 2, name: 'Lâm Tân Ninh',       phone: '',           cccd: '' },
+  { id: 3, name: 'Tô Minh Điền',       phone: '0933169658', cccd: '079089031423' },
+  { id: 4, name: 'Trương Minh Nhật',   phone: '0339091407', cccd: '072099004044' },
+  { id: 5, name: 'Huỳnh Văn Tâm',      phone: '0358388319', cccd: '079074012097' },
+  { id: 6, name: 'Nguyễn Thanh Tùng',  phone: '0909525211', cccd: '079095017712' },
+  { id: 7, name: 'Phước Lành',         phone: '',           cccd: '' },
+  { id: 8, name: 'Minh Phú',           phone: '',           cccd: '' },
+  { id: 9, name: 'Chành',              phone: '',           cccd: '' },
+];
+
+// Nếu version cũ hoặc chưa có → reset về mặc định
+if (localStorage.getItem('dataVersion') !== DATA_VERSION || plates.length === 0) {
+  plates = JSON.parse(JSON.stringify(DEFAULT_PLATES));
   savePlates();
 }
-if (drivers.length === 0) {
-  drivers = [
-    { id: 1, name: 'Ngô Hoàng Vũ',      phone: '0559827827', cccd: '079083034316' },
-    { id: 2, name: 'Lâm Tân Ninh',       phone: '',           cccd: '' },
-    { id: 3, name: 'Tô Minh Điền',       phone: '0933169658', cccd: '079089031423' },
-    { id: 4, name: 'Trương Minh Nhật',   phone: '0339091407', cccd: '072099004044' },
-    { id: 5, name: 'Huỳnh Văn Tâm',      phone: '0358388319', cccd: '079074012097' },
-    { id: 6, name: 'Nguyễn Thanh Tùng',  phone: '0909525211', cccd: '079095017712' },
-    { id: 7, name: 'Phước Lành',         phone: '',           cccd: '' },
-    { id: 8, name: 'Minh Phú',           phone: '',           cccd: '' },
-    { id: 9, name: 'Chành',              phone: '',           cccd: '' },
-  ];
+if (localStorage.getItem('dataVersion') !== DATA_VERSION || drivers.length === 0) {
+  drivers = JSON.parse(JSON.stringify(DEFAULT_DRIVERS));
   saveDrivers();
+  localStorage.setItem('dataVersion', DATA_VERSION);
+}
+
+function resetToDefault() {
+  if (!confirm('Xoá toàn bộ xe & lái xe hiện tại và khôi phục danh sách mặc định?')) return;
+  plates  = JSON.parse(JSON.stringify(DEFAULT_PLATES));
+  drivers = JSON.parse(JSON.stringify(DEFAULT_DRIVERS));
+  savePlates();
+  saveDrivers();
+  localStorage.setItem('dataVersion', DATA_VERSION);
+  refreshSelects('plate');
+  refreshSelects('driver');
+  updateManageCounts();
+  showToast('✅ Đã khôi phục dữ liệu mặc định!');
 }
 
 const SCRIPT = `function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-
-    // Sheet DonHang
     var os = ss.getSheetByName('DonHang') || ss.insertSheet('DonHang');
-    var ohdr = ['Ngay tao','Ma DH','Ten khach','Kho boc','Ngay vc','Ghi chu'];
-    if (os.getLastRow() === 0) {
-      os.appendRow(ohdr);
-    } else {
-      var curO = os.getRange(1,1,1,ohdr.length).getValues()[0];
-      if (!ohdr.every(function(v,i){return curO[i]===v;})) os.getRange(1,1,1,ohdr.length).setValues([ohdr]);
-    }
+    if (os.getLastRow()===0) os.appendRow(['Ngay tao','Ma DH','Ten khach','Kho boc','Ngay vc','Ghi chu']);
     os.appendRow([new Date().toLocaleString('vi-VN'), data.orderCode||'', data.customerName, data.warehouse||'', data.shipDate, data.orderNote||'']);
-
-    // Sheet ChuyenXe
     var ts = ss.getSheetByName('ChuyenXe') || ss.insertSheet('ChuyenXe');
-    var thdr = ['Ngay tao','Ma DH','Khach','Kho boc','Chuyen','So xe','Loai xe','Tuyen','Lai xe','SDT','CCCD','Diem giao','Khung gio','Ghi chu'];
-    if (ts.getLastRow() === 0) {
-      ts.appendRow(thdr);
-    } else {
-      var curT = ts.getRange(1,1,1,thdr.length).getValues()[0];
-      if (!thdr.every(function(v,i){return curT[i]===v;})) ts.getRange(1,1,1,thdr.length).setValues([thdr]);
-    }
-    data.trips.forEach(function(t,i){
-      ts.appendRow([
-        new Date().toLocaleString('vi-VN'),
-        data.orderCode||'',
-        data.customerName,
-        data.warehouse||'',
-        i+1,
-        t.plate,
-        t.type||'',
-        t.route||'',
-        t.driver,
-        t.phone,
-        t.cccd||'',
-        t.delivery||'',
-        t.time||'',
-        t.note||''
-      ]);
-    });
-
+    if (ts.getLastRow()===0) ts.appendRow(['Ngay tao','Ma DH','Khach','Chuyen','So xe','Loai xe','Tuyen','Lai xe','SDT','CCCD','Diem giao','Gio','Ghi chu']);
+    data.trips.forEach(function(t,i){ ts.appendRow([new Date().toLocaleString('vi-VN'), data.orderCode||'', data.customerName, i+1, t.plate, t.type||'', t.route||'', t.driver, t.phone, t.cccd||'', t.delivery||'', t.time||'', t.note||'']); });
     return ContentService.createTextOutput(JSON.stringify({status:'success'})).setMimeType(ContentService.MimeType.JSON);
   } catch(err) {
     return ContentService.createTextOutput(JSON.stringify({status:'error',msg:err.toString()})).setMimeType(ContentService.MimeType.JSON);
@@ -578,28 +568,6 @@ function renderWarehouseSelect() {
   warehouses.forEach(function(w) {
     sel.innerHTML += '<option value="' + w + '">' + w + '</option>';
   });
-  sel.innerHTML += '<option value="__custom__">✏️ Tự ghi kho khác...</option>';
-}
-
-function onWarehouseChange() {
-  var sel    = document.getElementById('warehouseSelect');
-  var custom = document.getElementById('warehouseCustom');
-  if (sel.value === '__custom__') {
-    custom.style.display = '';
-    custom.focus();
-  } else {
-    custom.style.display = 'none';
-    custom.value = '';
-  }
-}
-
-function getWarehouse() {
-  var sel = document.getElementById('warehouseSelect');
-  if (!sel) return '';
-  if (sel.value === '__custom__') {
-    return document.getElementById('warehouseCustom').value.trim();
-  }
-  return sel.value;
 }
 
 function savePlates()  { localStorage.setItem('plates',  JSON.stringify(plates));  }
@@ -746,8 +714,11 @@ function addTrip() {
     // SỐ XE — dropdown + tự ghi
     '<div class="fg">' +
       '<label>🚘 Số xe *</label>' +
-      '<select class="sel-plate" id="selPlate-' + n + '" onchange="onPlateChange(' + n + ')">' + plateOptions() + '<option value="__custom__">✏️ Tự ghi số xe...</option></select>' +
-      '<input type="text" id="plateCus-' + n + '" placeholder="Nhập biển số xe..." style="display:none;margin-top:8px;text-transform:uppercase">' +
+      '<select class="sel-plate" id="selPlate-' + n + '" onchange="onPlateChange(' + n + ')">' +
+        plateOptions() +
+        '<option value="__custom__">✏️ Tự ghi số xe...</option>' +
+      '</select>' +
+      '<input type="text" id="plateCus-' + n + '" placeholder="Nhập biển số xe..." style="display:none;margin-top:8px;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">' +
     '</div>' +
 
     // LÁI XE — dropdown + tự ghi + nút gọi
@@ -755,16 +726,19 @@ function addTrip() {
       '<label>👤 Lái xe *</label>' +
       '<div class="driver-row">' +
         '<div class="fg" style="margin-bottom:0">' +
-          '<select class="sel-driver" id="selDriver-' + n + '" data-trip-id="' + n + '" onchange="onDriverChange(' + n + ')">' + driverOptions() + '<option value="__custom__">✏️ Tự ghi lái xe...</option></select>' +
+          '<select class="sel-driver" id="selDriver-' + n + '" data-trip-id="' + n + '" onchange="onDriverChange(' + n + ')">' +
+            driverOptions() +
+            '<option value="__custom__">✏️ Tự ghi lái xe...</option>' +
+          '</select>' +
         '</div>' +
         '<button type="button" class="btn-call inactive" id="callBtn-' + n + '" onclick="callDriver(' + n + ')" title="Gọi điện lái xe">📞</button>' +
       '</div>' +
-      '<div id="driverCusBox-' + n + '" style="display:none;margin-top:8px;background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;padding:10px;">' +
+      '<div class="custom-box" id="driverCusBox-' + n + '">' +
+        '<div class="fg"><label>Tên tài xế</label><input type="text" id="dCusName-' + n + '" placeholder="Nguyễn Văn A"></div>' +
         '<div class="row2">' +
-          '<div class="fg" style="margin-bottom:8px"><label style="font-size:11px">Tên lái xe</label><input type="text" id="driverCusName-' + n + '" placeholder="Nguyễn Văn A"></div>' +
-          '<div class="fg" style="margin-bottom:8px"><label style="font-size:11px">Số điện thoại</label><input type="tel" id="driverCusPhone-' + n + '" placeholder="0909..." inputmode="tel" onchange="updateCallBtnCustom(' + n + ')"></div>' +
+          '<div class="fg"><label>Số điện thoại</label><input type="tel" id="dCusPhone-' + n + '" placeholder="0909..." inputmode="tel" onchange="updateCallBtnCus(' + n + ')"></div>' +
+          '<div class="fg"><label>Số CCCD</label><input type="text" id="dCusCccd-' + n + '" placeholder="012345678901" inputmode="numeric" maxlength="12"></div>' +
         '</div>' +
-        '<div class="fg" style="margin-bottom:0"><label style="font-size:11px">Số CCCD</label><input type="text" id="driverCusCccd-' + n + '" placeholder="012345678901" inputmode="numeric" maxlength="12"></div>' +
       '</div>' +
     '</div>' +
 
@@ -787,28 +761,28 @@ function addTrip() {
     '</div>';
 
   document.getElementById('tripsList').appendChild(div);
-  var plateCusEl = document.getElementById('plateCus-' + n);
-  if (plateCusEl) plateCusEl.addEventListener('input', function(){ this.value = this.value.toUpperCase(); });
   renumber();
 }
 
 function onPlateChange(n) {
   var sel = document.getElementById('selPlate-' + n);
-  var cus = document.getElementById('plateCus-' + n);
-  if (sel.value === '__custom__') { cus.style.display=''; cus.focus(); }
-  else { cus.style.display='none'; cus.value=''; }
+  var inp = document.getElementById('plateCus-' + n);
+  if (!sel || !inp) return;
+  inp.style.display = sel.value === '__custom__' ? '' : 'none';
+  if (sel.value !== '__custom__') inp.value = '';
+  else inp.focus();
 }
 
 function onDriverChange(n) {
   var sel = document.getElementById('selDriver-' + n);
   var box = document.getElementById('driverCusBox-' + n);
-  if (sel.value === '__custom__') { box.style.display=''; }
-  else { box.style.display='none'; }
+  if (!sel || !box) return;
+  box.style.display = sel.value === '__custom__' ? '' : 'none';
   updateCallBtn(n);
 }
 
-function updateCallBtnCustom(n) {
-  var phone = (document.getElementById('driverCusPhone-' + n) || {value:''}).value.trim();
+function updateCallBtnCus(n) {
+  var phone = (document.getElementById('dCusPhone-' + n) || {value:''}).value.trim();
   var btn   = document.getElementById('callBtn-' + n);
   if (btn) btn.className = phone ? 'btn-call active' : 'btn-call inactive';
 }
@@ -818,8 +792,8 @@ function updateCallBtn(n) {
   var btn = document.getElementById('callBtn-' + n);
   if (!sel || !btn) return;
   if (sel.value === '__custom__') {
-    var phone = (document.getElementById('driverCusPhone-' + n) || {value:''}).value.trim();
-    btn.className = phone ? 'btn-call active' : 'btn-call inactive';
+    var ph = (document.getElementById('dCusPhone-' + n) || {value:''}).value.trim();
+    btn.className = ph ? 'btn-call active' : 'btn-call inactive';
     return;
   }
   var id = parseInt(sel.value);
@@ -832,9 +806,9 @@ function callDriver(n) {
   var sel = document.getElementById('selDriver-' + n);
   if (!sel) return;
   if (sel.value === '__custom__') {
-    var phone = (document.getElementById('driverCusPhone-' + n) || {value:''}).value.trim();
-    if (!phone) { showToast('⚠️ Chưa nhập SĐT lái xe'); return; }
-    window.location.href = 'tel:' + phone;
+    var ph = (document.getElementById('dCusPhone-' + n) || {value:''}).value.trim();
+    if (!ph) { showToast('⚠️ Chưa nhập số điện thoại'); return; }
+    window.location.href = 'tel:' + ph;
     return;
   }
   var id = sel ? parseInt(sel.value) : 0;
@@ -867,18 +841,16 @@ function getTrips() {
       plateVal = ((document.getElementById('plateCus-' + n) || {value:''}).value).trim().toUpperCase();
       typeVal  = '';
     } else {
-      var pid = parseInt(plateSelVal || 0);
-      var p   = plates.find(function(x){ return x.id === pid; });
+      var p    = plates.find(function(x){ return x.id === parseInt(plateSelVal || 0); });
       plateVal = p ? p.plate : '';
       typeVal  = p ? p.type  : '';
     }
     if (driverSelVal === '__custom__') {
-      driverVal = ((document.getElementById('driverCusName-'  + n) || {value:''}).value).trim();
-      phoneVal  = ((document.getElementById('driverCusPhone-' + n) || {value:''}).value).trim();
-      cccdVal   = ((document.getElementById('driverCusCccd-'  + n) || {value:''}).value).trim();
+      driverVal = ((document.getElementById('dCusName-'  + n) || {value:''}).value).trim();
+      phoneVal  = ((document.getElementById('dCusPhone-' + n) || {value:''}).value).trim();
+      cccdVal   = ((document.getElementById('dCusCccd-'  + n) || {value:''}).value).trim();
     } else {
-      var did = parseInt(driverSelVal || 0);
-      var d   = drivers.find(function(x){ return x.id === did; });
+      var d    = drivers.find(function(x){ return x.id === parseInt(driverSelVal || 0); });
       driverVal = d ? d.name  : '';
       phoneVal  = d ? d.phone : '';
       cccdVal   = d ? (d.cccd || '') : '';
@@ -949,7 +921,7 @@ function showPreview() {
 
 function copyPreview() {
   var cust  = getCustomerName();
-  var wh    = getWarehouse();
+  var wh    = document.getElementById('warehouseSelect').value;
   var date  = document.getElementById('shipDate').value;
   var code  = document.getElementById('orderCode').value.trim();
   var note  = document.getElementById('orderNote').value.trim();
@@ -1002,7 +974,7 @@ function setSheetStatus(ok) {
 async function saveToSheet() {
   if (!sheetUrl) { showToast('⚠️ Chưa cài Google Sheet URL'); document.getElementById('sheetCard').scrollIntoView({behavior:'smooth'}); return; }
   var cust  = getCustomerName();
-  var wh    = getWarehouse();
+  var wh    = document.getElementById('warehouseSelect').value;
   var date  = document.getElementById('shipDate').value;
   if (!cust || !date) { showToast('⚠️ Nhập đủ thông tin đơn hàng'); return; }
   var trips = getTrips();
