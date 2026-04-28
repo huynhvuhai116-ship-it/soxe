@@ -176,7 +176,20 @@
   <!-- ĐƠN HÀNG -->
   <div class="card">
     <div class="sec-label">📋 Thông tin đơn hàng</div>
-    <div class="fg"><label>Tên khách hàng *</label><input type="text" id="customerName" placeholder="Công ty ABC, Anh Minh..."></div>
+    <div class="fg">
+      <label>Tên khách hàng *</label>
+      <select id="customerType" onchange="onCustomerTypeChange()" style="margin-bottom:8px">
+        <option value="noi_bo">📋 Lệnh Điều Động Nội Bộ</option>
+        <option value="tu_nhap">✏️ Tự nhập tên khách hàng</option>
+      </select>
+      <input type="text" id="customerName" placeholder="Nhập tên khách hàng..." style="display:none">
+    </div>
+    <div class="fg">
+      <label>🏭 Kho bốc hàng</label>
+      <select id="warehouseSelect">
+        <option value="">-- Chọn kho bốc hàng --</option>
+      </select>
+    </div>
     <div class="row2">
       <div class="fg"><label>Ngày vận chuyển *</label><input type="date" id="shipDate"></div>
       <div class="fg"><label>Mã đơn hàng</label><input type="text" id="orderCode" placeholder="DH-001"></div>
@@ -227,9 +240,10 @@
         <div class="setup-box">
           <h3>📌 Cách cài đặt (làm 1 lần)</h3>
           <ol>
-            <li>Tạo <strong>Google Sheet</strong> với 2 tab: <strong>SoXe</strong> và <strong>LaiXe</strong></li>
+            <li>Tạo <strong>Google Sheet</strong> với 3 tab: <strong>SoXe</strong>, <strong>LaiXe</strong>, <strong>KhoBoc</strong></li>
             <li>Tab <strong>SoXe</strong>: cột A = Biển số, cột B = Loại xe</li>
             <li>Tab <strong>LaiXe</strong>: cột A = Tên, cột B = SĐT, cột C = CCCD</li>
+            <li>Tab <strong>KhoBoc</strong>: cột A = Tên kho (mỗi kho 1 dòng)</li>
             <li>Copy <strong>Sheet ID</strong> từ URL → dán vào ô trên → Lưu → Tải dữ liệu</li>
             <li>Nhớ <strong>share sheet</strong>: Anyone with the link → Viewer</li>
           </ol>
@@ -371,8 +385,8 @@ const SCRIPT = `function doPost(e) {
     var data = JSON.parse(e.postData.contents);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var os = ss.getSheetByName('DonHang') || ss.insertSheet('DonHang');
-    if (os.getLastRow()===0) os.appendRow(['Ngay tao','Ma DH','Ten khach','Ngay vc','Ghi chu']);
-    os.appendRow([new Date().toLocaleString('vi-VN'), data.orderCode||'', data.customerName, data.shipDate, data.orderNote||'']);
+    if (os.getLastRow()===0) os.appendRow(['Ngay tao','Ma DH','Ten khach','Kho boc','Ngay vc','Ghi chu']);
+    os.appendRow([new Date().toLocaleString('vi-VN'), data.orderCode||'', data.customerName, data.warehouse||'', data.shipDate, data.orderNote||'']);
     var ts = ss.getSheetByName('ChuyenXe') || ss.insertSheet('ChuyenXe');
     if (ts.getLastRow()===0) ts.appendRow(['Ngay tao','Ma DH','Khach','Chuyen','So xe','Loai xe','Tuyen','Lai xe','SDT','CCCD','Diem giao','Gio','Ghi chu']);
     data.trips.forEach(function(t,i){ ts.appendRow([new Date().toLocaleString('vi-VN'), data.orderCode||'', data.customerName, i+1, t.plate, t.type||'', t.route||'', t.driver, t.phone, t.cccd||'', t.delivery||'', t.time||'', t.note||'']); });
@@ -386,11 +400,13 @@ document.getElementById('scriptCode').value = SCRIPT;
 
 // ===== INIT =====
 let dataSheetId = localStorage.getItem('dataSheetId') || '';
+let warehouses  = JSON.parse(localStorage.getItem('warehouses') || '[]');
 
 window.onload = function() {
   document.getElementById('shipDate').value = new Date().toISOString().split('T')[0];
   addTrip();
   if (sheetUrl) { document.getElementById('sheetUrl').value = sheetUrl; setSheetStatus(true); }
+  renderWarehouseSelect();
   if (dataSheetId) {
     document.getElementById('dataSheetId').value = dataSheetId;
     setDataStatus('connected', 'Đã kết nối — nhấn 🔄 để tải dữ liệu');
@@ -449,21 +465,36 @@ async function loadFromSheet(showFeedback) {
       if (name) newDrivers.push({ id: Date.now() + 1000 + i, name: name, phone: phone, cccd: cccd });
     });
 
+    // Load KhoBoc
+    var newWarehouses = [];
+    try {
+      var resKho = await fetch(baseUrl + 'KhoBoc');
+      var txtKho = await resKho.text();
+      var jsonKho = JSON.parse(txtKho.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+      (jsonKho.table.rows || []).forEach(function(row) {
+        var name = row.c[0] && row.c[0].v ? String(row.c[0].v).trim() : '';
+        if (name) newWarehouses.push(name);
+      });
+    } catch(e) { /* tab KhoBoc chưa có — bỏ qua */ }
+
     if (newPlates.length === 0 && newDrivers.length === 0) {
       if (showFeedback) showToast('⚠️ Không tìm thấy dữ liệu. Kiểm tra tên tab SoXe / LaiXe');
       setDataStatus('no', 'Không có dữ liệu — kiểm tra tên tab Sheet');
       return;
     }
 
-    plates  = newPlates;
-    drivers = newDrivers;
+    plates     = newPlates;
+    drivers    = newDrivers;
+    warehouses = newWarehouses;
     savePlates();
     saveDrivers();
+    saveWarehouses();
     refreshSelects('plate');
     refreshSelects('driver');
+    renderWarehouseSelect();
     updateManageCounts();
 
-    var msg = '✅ Đã tải: ' + plates.length + ' xe, ' + drivers.length + ' lái xe';
+    var msg = '✅ Đã tải: ' + plates.length + ' xe, ' + drivers.length + ' lái xe' + (newWarehouses.length ? ', ' + newWarehouses.length + ' kho' : '');
     setDataStatus('connected', msg);
     if (showFeedback) showToast(msg);
 
@@ -476,6 +507,44 @@ async function loadFromSheet(showFeedback) {
 }
 
 // ===== PLATES =====
+// ===== TIME SLOTS =====
+function timeSlotOptions() {
+  var opts = '<option value="">-- Chọn khung giờ --</option>';
+  for (var h = 0; h < 24; h++) {
+    var from = (h < 10 ? '0' : '') + h + ':00';
+    var to   = ((h+1) < 10 ? '0' : '') + (h+1) + ':00';
+    if (h === 23) to = '00:00';
+    opts += '<option value="' + from + '-' + to + '">' + from + ' - ' + to + '</option>';
+  }
+  return opts;
+}
+
+// ===== CUSTOMER TYPE =====
+function onCustomerTypeChange() {
+  var type  = document.getElementById('customerType').value;
+  var input = document.getElementById('customerName');
+  input.style.display = type === 'tu_nhap' ? '' : 'none';
+  if (type !== 'tu_nhap') input.value = '';
+}
+
+function getCustomerName() {
+  var type = document.getElementById('customerType').value;
+  if (type === 'noi_bo') return 'Lệnh Điều Động Nội Bộ';
+  return document.getElementById('customerName').value.trim();
+}
+
+// ===== WAREHOUSES =====
+function saveWarehouses() { localStorage.setItem('warehouses', JSON.stringify(warehouses)); }
+
+function renderWarehouseSelect() {
+  var sel = document.getElementById('warehouseSelect');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- Chọn kho bốc hàng --</option>';
+  warehouses.forEach(function(w) {
+    sel.innerHTML += '<option value="' + w + '">' + w + '</option>';
+  });
+}
+
 function savePlates()  { localStorage.setItem('plates',  JSON.stringify(plates));  }
 function saveDrivers() { localStorage.setItem('drivers', JSON.stringify(drivers)); }
 
@@ -637,7 +706,7 @@ function addTrip() {
     // TUYẾN + GIỜ
     '<div class="row2" style="margin-top:2px">' +
       '<div class="fg" style="margin-bottom:0"><label>📍 Tuyến đường</label><input type="text" id="route-' + n + '" placeholder="VD: HCM → Bình Dương"></div>' +
-      '<div class="fg" style="margin-bottom:0"><label>⏰ Giờ xuất phát</label><input type="time" id="time-' + n + '"></div>' +
+      '<div class="fg" style="margin-bottom:0"><label>⏰ Khung giờ bốc hàng</label><select id="time-' + n + '" style="width:100%">' + timeSlotOptions() + '</select></div>' +
     '</div>' +
 
     // SỐ ĐIỂM GIAO
@@ -712,10 +781,11 @@ function getTrips() {
 
 // ===== PREVIEW =====
 function showPreview() {
-  var cust  = document.getElementById('customerName').value.trim();
+  var cust  = getCustomerName();
   var date  = document.getElementById('shipDate').value;
   var code  = document.getElementById('orderCode').value.trim();
   var note  = document.getElementById('orderNote').value.trim();
+  var wh    = document.getElementById('warehouseSelect').value;
   var trips = getTrips();
 
   if (!cust) { showToast('⚠️ Nhập tên khách hàng'); return; }
@@ -747,6 +817,7 @@ function showPreview() {
     '<div class="preview-order">' +
       '<div class="prow"><span class="plbl">👤 Khách hàng:</span><strong>' + cust + '</strong></div>' +
       '<div class="prow"><span class="plbl">📅 Ngày:</span><span>' + dateStr + '</span></div>' +
+      (wh   ? '<div class="prow"><span class="plbl">🏭 Kho bốc:</span><strong>' + wh + '</strong></div>' : '') +
       (code ? '<div class="prow"><span class="plbl">📦 Mã ĐH:</span><span>' + code + '</span></div>' : '') +
       (note ? '<div class="prow"><span class="plbl">📝 Ghi chú:</span><span>' + note + '</span></div>' : '') +
       '<div class="prow" style="margin-top:5px"><span class="plbl">🚛 Tổng xe:</span><strong>' + trips.length + ' chuyến</strong></div>' +
@@ -758,7 +829,8 @@ function showPreview() {
 }
 
 function copyPreview() {
-  var cust  = document.getElementById('customerName').value.trim();
+  var cust  = getCustomerName();
+  var wh    = document.getElementById('warehouseSelect').value;
   var date  = document.getElementById('shipDate').value;
   var code  = document.getElementById('orderCode').value.trim();
   var note  = document.getElementById('orderNote').value.trim();
@@ -768,6 +840,7 @@ function copyPreview() {
   lines.push('════════════════════════════');
   lines.push('👤 Khách hàng: ' + cust);
   if (date) lines.push('📅 Ngày: ' + new Date(date + 'T00:00:00').toLocaleDateString('vi-VN'));
+  if (wh)   lines.push('🏭 Kho bốc: ' + wh);
   if (code) lines.push('📦 Mã ĐH: ' + code);
   if (note) lines.push('📝 Ghi chú: ' + note);
   lines.push('🚛 Tổng: ' + trips.length + ' chuyến');
@@ -809,7 +882,8 @@ function setSheetStatus(ok) {
 
 async function saveToSheet() {
   if (!sheetUrl) { showToast('⚠️ Chưa cài Google Sheet URL'); document.getElementById('sheetCard').scrollIntoView({behavior:'smooth'}); return; }
-  var cust  = document.getElementById('customerName').value.trim();
+  var cust  = getCustomerName();
+  var wh    = document.getElementById('warehouseSelect').value;
   var date  = document.getElementById('shipDate').value;
   if (!cust || !date) { showToast('⚠️ Nhập đủ thông tin đơn hàng'); return; }
   var trips = getTrips();
@@ -818,7 +892,7 @@ async function saveToSheet() {
   }
   showToast('⏳ Đang lưu...');
   try {
-    await fetch(sheetUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ customerName:cust, shipDate:date, orderCode: document.getElementById('orderCode').value.trim(), orderNote: document.getElementById('orderNote').value.trim(), trips:trips }) });
+    await fetch(sheetUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ customerName:cust, warehouse:wh, shipDate:date, orderCode: document.getElementById('orderCode').value.trim(), orderNote: document.getElementById('orderNote').value.trim(), trips:trips }) });
     showToast('✅ Đã lưu vào Google Sheet!');
   } catch(e) { showToast('❌ Lỗi kết nối'); }
 }
