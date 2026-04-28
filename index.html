@@ -75,9 +75,11 @@
   .btn-success { background: var(--success); color: #fff; }
   .btn-sm { padding: 7px 12px; font-size: 12px; }
   .custom-box { display:none; margin-top:8px; background:#f0f9ff; border:1.5px solid #bae6fd; border-radius:10px; padding:11px 12px; }
+  .custom-box.show { display:block; }
   .custom-box .fg { margin-bottom:8px; }
   .custom-box .fg:last-child { margin-bottom:0; }
-  .custom-box .fg label { font-size:11px; }
+  .custom-box .fg label { font-size:11px; color:var(--muted); }
+  .custom-box .row2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
   .btn-success { background: var(--success); color: #fff; }
   .loading-spin { display:inline-block; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -190,9 +192,10 @@
     </div>
     <div class="fg">
       <label>🏭 Kho bốc hàng</label>
-      <select id="warehouseSelect">
+      <select id="warehouseSelect" onchange="onWarehouseChange()">
         <option value="">-- Chọn kho bốc hàng --</option>
       </select>
+      <input type="text" id="warehouseCustom" placeholder="Nhập tên kho..." style="display:none;margin-top:8px">
     </div>
     <div class="row2">
       <div class="fg"><label>Ngày vận chuyển *</label><input type="date" id="shipDate"></div>
@@ -226,15 +229,14 @@
 
     <!-- Đọc dữ liệu xe & lái xe -->
     <div style="border-top:1px solid var(--border);padding-top:14px">
-      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px">📥 Sheet ID đọc dữ liệu xe & lái xe</div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Lấy từ URL: sheets.google.com/d/<strong style="color:var(--primary)">SHEET_ID</strong>/edit</div>
-      <div id="dataStatus" class="sheet-status no"><span class="sdot"></span><span>Chưa kết nối sheet dữ liệu</span></div>
-      <div class="url-row" style="margin-top:8px">
-        <input type="text" id="dataSheetId" placeholder="Dán Google Sheet ID vào đây...">
-        <button class="btn btn-success btn-sm" onclick="saveDataSheetId()">Lưu</button>
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">📥 Tải dữ liệu xe, lái xe & kho</div>
+      <div style="font-size:11px;color:var(--muted);background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:9px;line-height:1.7;margin-bottom:8px">
+        ✅ Dùng <strong>Apps Script URL</strong> ở trên — nhấn <strong>Lưu</strong> là tự tải.<br>
+        Cập nhật Sheet xong → nhấn <strong>🔄 Tải lại</strong>.
       </div>
+      <div id="dataStatus" class="sheet-status no"><span class="sdot"></span><span>Chưa tải dữ liệu</span></div>
       <button class="btn btn-outline btn-sm" onclick="loadFromSheet(true)" style="margin-top:10px;width:100%;justify-content:center">
-        🔄 Tải dữ liệu xe & lái xe từ Sheet
+        🔄 Tải lại dữ liệu từ Sheet
       </button>
     </div>
 
@@ -292,19 +294,20 @@
     <div class="modal-body">
       <!-- TABS -->
       <div class="tabs">
-        <button class="tab active" id="tab-xe" onclick="switchTab('xe')">🚘 Danh sách xe (<span id="cntXe">0</span>)</button>
+        <button class="tab active" id="tab-xe" onclick="switchTab('xe')">🚘 Xe (<span id="cntXe">0</span>)</button>
         <button class="tab" id="tab-lx" onclick="switchTab('lx')">👤 Lái xe (<span id="cntLx">0</span>)</button>
+        <button class="tab" id="tab-kho" onclick="switchTab('kho')">🏭 Kho (<span id="cntKho">0</span>)</button>
       </div>
 
       <!-- PANEL XE -->
       <div id="panel-xe">
         <div class="add-box">
           <h3>➕ Thêm số xe mới</h3>
-          <div class="fg"><label>Biển số xe *</label><input type="text" id="newPlate" placeholder="VD: 51C-123.45"></div>
+          <div class="fg"><label>Biển số xe *</label><input type="text" id="newPlate" placeholder="VD: 29H-77696"></div>
           <div class="fg"><label>Loại xe (không bắt buộc)</label><input type="text" id="newType" placeholder="VD: Container 20, Xe tải 5T..."></div>
           <button class="btn btn-primary" onclick="addPlate()" style="width:100%;justify-content:center">✓ Thêm xe</button>
         </div>
-        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:9px">Danh sách xe</div>
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:9px">Danh sách xe (<span id="cntXe2">0</span>)</div>
         <div id="plateList"></div>
       </div>
 
@@ -317,8 +320,19 @@
           <div class="fg"><label>Số CCCD</label><input type="text" id="newCCCD" placeholder="0123456789012" inputmode="numeric" maxlength="12"></div>
           <button class="btn btn-primary" onclick="addDriver()" style="width:100%;justify-content:center">✓ Thêm lái xe</button>
         </div>
-        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:9px">Danh sách lái xe</div>
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:9px">Danh sách lái xe (<span id="cntLx2">0</span>)</div>
         <div id="driverList"></div>
+      </div>
+
+      <!-- PANEL KHO -->
+      <div id="panel-kho" style="display:none">
+        <div class="add-box">
+          <h3>➕ Thêm kho mới</h3>
+          <div class="fg"><label>Tên kho *</label><input type="text" id="newKho" placeholder="VD: Kho Bình Dương, Kho HCM..."></div>
+          <button class="btn btn-primary" onclick="addKho()" style="width:100%;justify-content:center">✓ Thêm kho</button>
+        </div>
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:9px">Danh sách kho (<span id="cntKho2">0</span>)</div>
+        <div id="khoList"></div>
       </div>
     </div>
     <div class="modal-foot">
@@ -357,7 +371,7 @@ let drivers = JSON.parse(localStorage.getItem('drivers') || '[]');
 
 // Dữ liệu mẫu nếu lần đầu dùng
 // ── Dữ liệu mặc định (tăng DATA_VERSION khi muốn reset cache) ──
-var DATA_VERSION = '2';
+var DATA_VERSION = '6';
 var DEFAULT_PLATES = [
   { id: 1,  plate: '29H-77696', type: '' },
   { id: 2,  plate: '29E-12900', type: '' },
@@ -381,7 +395,13 @@ var DEFAULT_DRIVERS = [
   { id: 9, name: 'Chành',              phone: '',           cccd: '' },
 ];
 
-// Nếu version cũ hoặc chưa có → reset về mặc định
+var DEFAULT_WAREHOUSES = [
+  'Kho Hiệp phước','Kho AJ','Kho AG','Kho Lotte','Kho Satra',
+  'Kho Lutos Tân Kim','Kho E50','Kho Theo Lệch Xuất của kho',
+  'Kho Transimex','Kinder _Lê Văn Lương',
+  'Nhà Hàng_Phan Văn Trị','Nhà Hàng Tân Phú','Nhà Hàng Bình Dương',
+];
+
 if (localStorage.getItem('dataVersion') !== DATA_VERSION || plates.length === 0) {
   plates = JSON.parse(JSON.stringify(DEFAULT_PLATES));
   savePlates();
@@ -389,6 +409,10 @@ if (localStorage.getItem('dataVersion') !== DATA_VERSION || plates.length === 0)
 if (localStorage.getItem('dataVersion') !== DATA_VERSION || drivers.length === 0) {
   drivers = JSON.parse(JSON.stringify(DEFAULT_DRIVERS));
   saveDrivers();
+}
+if (localStorage.getItem('dataVersion') !== DATA_VERSION || warehouses.length === 0) {
+  warehouses = DEFAULT_WAREHOUSES.slice();
+  saveWarehouses();
   localStorage.setItem('dataVersion', DATA_VERSION);
 }
 
@@ -405,7 +429,31 @@ function resetToDefault() {
   showToast('✅ Đã khôi phục dữ liệu mặc định!');
 }
 
-const SCRIPT = `function doPost(e) {
+const SCRIPT = `// ===== ĐỌC DỮ LIỆU (xe, lái xe, kho) =====
+function doGet(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var res = { SoXe:[], LaiXe:[], KhoBoc:[] };
+    var sXe = ss.getSheetByName('SoXe');
+    if (sXe) sXe.getDataRange().getValues().forEach(function(r){
+      var p=String(r[0]||'').trim().toUpperCase(); if(p) res.SoXe.push({plate:p,type:String(r[1]||'').trim()});
+    });
+    var sLx = ss.getSheetByName('LaiXe');
+    if (sLx) sLx.getDataRange().getValues().forEach(function(r){
+      var n=String(r[0]||'').trim(); if(n) res.LaiXe.push({name:n,phone:String(r[1]||'').trim(),cccd:String(r[2]||'').trim()});
+    });
+    var sKho = ss.getSheetByName('KhoBoc');
+    if (sKho) sKho.getDataRange().getValues().forEach(function(r){
+      var k=String(r[0]||'').trim(); if(k) res.KhoBoc.push(k);
+    });
+    return ContentService.createTextOutput(JSON.stringify({status:'success',data:res})).setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({status:'error',msg:err.toString()})).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// ===== GHI DỮ LIỆU =====
+function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -413,8 +461,8 @@ const SCRIPT = `function doPost(e) {
     if (os.getLastRow()===0) os.appendRow(['Ngay tao','Ma DH','Ten khach','Kho boc','Ngay vc','Ghi chu']);
     os.appendRow([new Date().toLocaleString('vi-VN'), data.orderCode||'', data.customerName, data.warehouse||'', data.shipDate, data.orderNote||'']);
     var ts = ss.getSheetByName('ChuyenXe') || ss.insertSheet('ChuyenXe');
-    if (ts.getLastRow()===0) ts.appendRow(['Ngay tao','Ma DH','Khach','Chuyen','So xe','Loai xe','Tuyen','Lai xe','SDT','CCCD','Diem giao','Gio','Ghi chu']);
-    data.trips.forEach(function(t,i){ ts.appendRow([new Date().toLocaleString('vi-VN'), data.orderCode||'', data.customerName, i+1, t.plate, t.type||'', t.route||'', t.driver, t.phone, t.cccd||'', t.delivery||'', t.time||'', t.note||'']); });
+    if (ts.getLastRow()===0) ts.appendRow(['Ngay tao','Ma DH','Khach','Kho boc','Chuyen','So xe','Loai xe','Tuyen','Lai xe','SDT','CCCD','Diem giao','Gio','Ghi chu']);
+    data.trips.forEach(function(t,i){ ts.appendRow([new Date().toLocaleString('vi-VN'),data.orderCode||'',data.customerName,data.warehouse||'',i+1,t.plate,t.type||'',t.route||'',t.driver,t.phone,t.cccd||'',t.delivery||'',t.time||'',t.note||'']); });
     return ContentService.createTextOutput(JSON.stringify({status:'success'})).setMimeType(ContentService.MimeType.JSON);
   } catch(err) {
     return ContentService.createTextOutput(JSON.stringify({status:'error',msg:err.toString()})).setMimeType(ContentService.MimeType.JSON);
@@ -424,32 +472,23 @@ const SCRIPT = `function doPost(e) {
 document.getElementById('scriptCode').value = SCRIPT;
 
 // ===== INIT =====
-let dataSheetId = localStorage.getItem('dataSheetId') || '';
+
 let warehouses  = JSON.parse(localStorage.getItem('warehouses') || '[]');
 
 window.onload = function() {
   document.getElementById('shipDate').value = new Date().toISOString().split('T')[0];
   addTrip();
-  if (sheetUrl) { document.getElementById('sheetUrl').value = sheetUrl; setSheetStatus(true); }
   renderWarehouseSelect();
-  if (dataSheetId) {
-    document.getElementById('dataSheetId').value = dataSheetId;
-    setDataStatus('connected', 'Đã kết nối — nhấn 🔄 để tải dữ liệu');
-    loadFromSheet(false); // auto-load silently on open
+  if (sheetUrl) {
+    document.getElementById('sheetUrl').value = sheetUrl;
+    setSheetStatus(true);
+    loadFromSheet(false);
   }
+  renderWarehouseSelect();
+
 };
 
-function saveDataSheetId() {
-  var id = document.getElementById('dataSheetId').value.trim();
-  // accept full URL or just ID
-  var match = id.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  if (match) id = match[1];
-  if (!id) { showToast('⚠️ Nhập Sheet ID'); return; }
-  dataSheetId = id;
-  localStorage.setItem('dataSheetId', id);
-  setDataStatus('connected', 'Đã lưu Sheet ID ✓');
-  showToast('✅ Đã lưu Sheet ID!');
-}
+
 
 function setDataStatus(state, msg) {
   var bar = document.getElementById('dataStatus');
@@ -459,75 +498,35 @@ function setDataStatus(state, msg) {
 }
 
 async function loadFromSheet(showFeedback) {
-  if (!dataSheetId) { if (showFeedback) showToast('⚠️ Chưa nhập Sheet ID'); return; }
-  if (showFeedback) { setDataStatus('loading', '⏳ Đang tải...'); showToast('⏳ Đang tải dữ liệu từ Sheet...'); }
-
-  var baseUrl = 'https://docs.google.com/spreadsheets/d/' + dataSheetId + '/gviz/tq?tqx=out:json&sheet=';
-
+  if (!sheetUrl) {
+    if (showFeedback) showToast('⚠️ Chưa nhập Apps Script URL');
+    setDataStatus('no', '⚠️ Cần nhập Apps Script URL trước');
+    return;
+  }
+  if (showFeedback) { setDataStatus('loading', '⏳ Đang tải...'); showToast('⏳ Đang tải dữ liệu...'); }
   try {
-    // Load SoXe
-    var resXe = await fetch(baseUrl + 'SoXe');
-    var txtXe = await resXe.text();
-    var jsonXe = JSON.parse(txtXe.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
-    var newPlates = [];
-    var rowsXe = jsonXe.table.rows || [];
-    rowsXe.forEach(function(row, i) {
-      var plate = row.c[0] && row.c[0].v ? String(row.c[0].v).trim().toUpperCase() : '';
-      var type  = row.c[1] && row.c[1].v ? String(row.c[1].v).trim() : '';
-      if (plate) newPlates.push({ id: Date.now() + i, plate: plate, type: type });
-    });
-
-    // Load LaiXe
-    var resLx = await fetch(baseUrl + 'LaiXe');
-    var txtLx = await resLx.text();
-    var jsonLx = JSON.parse(txtLx.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
-    var newDrivers = [];
-    var rowsLx = jsonLx.table.rows || [];
-    rowsLx.forEach(function(row, i) {
-      var name  = row.c[0] && row.c[0].v ? String(row.c[0].v).trim() : '';
-      var phone = row.c[1] && row.c[1].v ? String(row.c[1].v).trim() : '';
-      var cccd  = row.c[2] && row.c[2].v ? String(row.c[2].v).trim() : '';
-      if (name) newDrivers.push({ id: Date.now() + 1000 + i, name: name, phone: phone, cccd: cccd });
-    });
-
-    // Load KhoBoc
-    var newWarehouses = [];
-    try {
-      var resKho = await fetch(baseUrl + 'KhoBoc');
-      var txtKho = await resKho.text();
-      var jsonKho = JSON.parse(txtKho.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
-      (jsonKho.table.rows || []).forEach(function(row) {
-        var name = row.c[0] && row.c[0].v ? String(row.c[0].v).trim() : '';
-        if (name) newWarehouses.push(name);
-      });
-    } catch(e) { /* tab KhoBoc chưa có — bỏ qua */ }
-
-    if (newPlates.length === 0 && newDrivers.length === 0) {
-      if (showFeedback) showToast('⚠️ Không tìm thấy dữ liệu. Kiểm tra tên tab SoXe / LaiXe');
-      setDataStatus('no', 'Không có dữ liệu — kiểm tra tên tab Sheet');
-      return;
+    var res  = await fetch(sheetUrl);
+    var json = await res.json();
+    if (json.status !== 'success') throw new Error(json.msg || 'Lỗi');
+    var d = json.data;
+    var np = (d.SoXe||[]).map(function(r,i){ return {id:Date.now()+i, plate:r.plate, type:r.type}; });
+    var nd = (d.LaiXe||[]).map(function(r,i){ return {id:Date.now()+1000+i, name:r.name, phone:r.phone, cccd:r.cccd}; });
+    var nw = d.KhoBoc||[];
+    if (!np.length && !nd.length) {
+      setDataStatus('no','⚠️ Sheet chưa có dữ liệu — kiểm tra tab SoXe, LaiXe');
+      if (showFeedback) showToast('⚠️ Sheet chưa có dữ liệu'); return;
     }
-
-    plates     = newPlates;
-    drivers    = newDrivers;
-    warehouses = newWarehouses;
-    savePlates();
-    saveDrivers();
-    saveWarehouses();
-    refreshSelects('plate');
-    refreshSelects('driver');
-    renderWarehouseSelect();
-    updateManageCounts();
-
-    var msg = '✅ Đã tải: ' + plates.length + ' xe, ' + drivers.length + ' lái xe' + (newWarehouses.length ? ', ' + newWarehouses.length + ' kho' : '');
+    plates=np; drivers=nd; warehouses=nw;
+    savePlates(); saveDrivers(); saveWarehouses();
+    refreshSelects('plate'); refreshSelects('driver');
+    renderWarehouseSelect(); renderKhoList(); updateManageCounts();
+    var msg='✅ Đã tải: '+np.length+' xe, '+nd.length+' lái xe'+(nw.length?', '+nw.length+' kho':'');
     setDataStatus('connected', msg);
     if (showFeedback) showToast(msg);
-
   } catch(err) {
     console.error(err);
-    var errMsg = 'Lỗi tải dữ liệu. Kiểm tra Sheet ID & quyền share';
-    setDataStatus('no', '❌ ' + errMsg);
-    if (showFeedback) showToast('❌ ' + errMsg);
+    setDataStatus('no','❌ Lỗi kết nối Apps Script');
+    if (showFeedback) showToast('❌ '+(err.message||'Lỗi kết nối'));
   }
 }
 
@@ -561,13 +560,71 @@ function getCustomerName() {
 // ===== WAREHOUSES =====
 function saveWarehouses() { localStorage.setItem('warehouses', JSON.stringify(warehouses)); }
 
+function addKho() {
+  var name = (document.getElementById('newKho') || {value:''}).value.trim();
+  if (!name) { showToast('⚠️ Nhập tên kho'); return; }
+  if (warehouses.indexOf(name) >= 0) { showToast('⚠️ Kho này đã có'); return; }
+  warehouses.push(name);
+  saveWarehouses();
+  document.getElementById('newKho').value = '';
+  renderKhoList(); renderWarehouseSelect(); updateManageCounts();
+  showToast('✅ Đã thêm: ' + name);
+}
+
+function delKho(i) {
+  warehouses.splice(i, 1);
+  saveWarehouses();
+  renderKhoList(); renderWarehouseSelect(); updateManageCounts();
+  showToast('🗑️ Đã xóa kho');
+}
+
+function renderKhoList() {
+  var el = document.getElementById('khoList');
+  if (!el) return;
+  if (!warehouses.length) {
+    el.innerHTML = '<div class="empty"><div class="ico">🏭</div><p>Chưa có kho nào.</p></div>';
+    updateManageCounts(); return;
+  }
+  el.innerHTML = '';
+  warehouses.forEach(function(w, i) {
+    var d = document.createElement('div');
+    d.className = 'list-item';
+    d.innerHTML = '<div class="list-item-info"><div class="list-name">🏭 ' + w + '</div></div>'
+      + '<button class="btn-del" onclick="delKho(' + i + ')">🗑</button>';
+    el.appendChild(d);
+  });
+  updateManageCounts();
+}
+
 function renderWarehouseSelect() {
   var sel = document.getElementById('warehouseSelect');
   if (!sel) return;
+  var cur = sel.value;
   sel.innerHTML = '<option value="">-- Chọn kho bốc hàng --</option>';
   warehouses.forEach(function(w) {
     sel.innerHTML += '<option value="' + w + '">' + w + '</option>';
   });
+  sel.innerHTML += '<option value="__wh_custom__">✏️ Tự ghi kho khác...</option>';
+  if (cur) sel.value = cur;
+}
+
+function onWarehouseChange() {
+  var sel = document.getElementById('warehouseSelect');
+  var inp = document.getElementById('warehouseCustom');
+  if (!sel || !inp) return;
+  inp.style.display = sel.value === '__wh_custom__' ? '' : 'none';
+  if (sel.value !== '__wh_custom__') inp.value = '';
+  else inp.focus();
+}
+
+function getWarehouse() {
+  var sel = document.getElementById('warehouseSelect');
+  if (!sel) return '';
+  if (sel.value === '__wh_custom__') {
+    var inp = document.getElementById('warehouseCustom');
+    return inp ? inp.value.trim() : '';
+  }
+  return sel.value;
 }
 
 function savePlates()  { localStorage.setItem('plates',  JSON.stringify(plates));  }
@@ -679,24 +736,27 @@ function refreshSelects(type) {
 }
 
 function updateManageCounts() {
-  document.getElementById('cntXe').textContent = plates.length;
-  document.getElementById('cntLx').textContent = drivers.length;
+  var xe = plates.length, lx = drivers.length, kho = warehouses.length;
+  ['cntXe','cntXe2'].forEach(function(id){ var e=document.getElementById(id); if(e) e.textContent=xe; });
+  ['cntLx','cntLx2'].forEach(function(id){ var e=document.getElementById(id); if(e) e.textContent=lx; });
+  ['cntKho','cntKho2'].forEach(function(id){ var e=document.getElementById(id); if(e) e.textContent=kho; });
 }
 
 // ===== TABS =====
 let activeTab = 'xe';
 function switchTab(tab) {
   activeTab = tab;
-  document.getElementById('tab-xe').className  = 'tab' + (tab==='xe' ? ' active' : '');
-  document.getElementById('tab-lx').className  = 'tab' + (tab==='lx' ? ' active' : '');
-  document.getElementById('panel-xe').style.display = tab==='xe' ? '' : 'none';
-  document.getElementById('panel-lx').style.display = tab==='lx' ? '' : 'none';
+  ['xe','lx','kho'].forEach(function(t) {
+    var tb = document.getElementById('tab-'+t);
+    var pn = document.getElementById('panel-'+t);
+    if (tb) tb.className = 'tab' + (tab===t ? ' active' : '');
+    if (pn) pn.style.display = tab===t ? '' : 'none';
+  });
 }
 
 function openManage() {
   updateManageCounts();
-  renderPlates();
-  renderDrivers();
+  renderPlates(); renderDrivers(); renderKhoList();
   document.getElementById('manageModal').classList.add('show');
 }
 
@@ -736,7 +796,7 @@ function addTrip() {
       '<div class="custom-box" id="driverCusBox-' + n + '">' +
         '<div class="fg"><label>Tên tài xế</label><input type="text" id="dCusName-' + n + '" placeholder="Nguyễn Văn A"></div>' +
         '<div class="row2">' +
-          '<div class="fg"><label>Số điện thoại</label><input type="tel" id="dCusPhone-' + n + '" placeholder="0909..." inputmode="tel" onchange="updateCallBtnCus(' + n + ')"></div>' +
+          '<div class="fg"><label>Số điện thoại</label><input type="tel" id="dCusPhone-' + n + '" placeholder="0909..." inputmode="tel" oninput="updateCallBtnCus(' + n + ')"></div>' +
           '<div class="fg"><label>Số CCCD</label><input type="text" id="dCusCccd-' + n + '" placeholder="012345678901" inputmode="numeric" maxlength="12"></div>' +
         '</div>' +
       '</div>' +
@@ -777,7 +837,12 @@ function onDriverChange(n) {
   var sel = document.getElementById('selDriver-' + n);
   var box = document.getElementById('driverCusBox-' + n);
   if (!sel || !box) return;
-  box.style.display = sel.value === '__custom__' ? '' : 'none';
+  if (sel.value === '__custom__') {
+    box.classList.add('show');
+    setTimeout(function(){ var i=document.getElementById('dCusName-'+n); if(i) i.focus(); }, 80);
+  } else {
+    box.classList.remove('show');
+  }
   updateCallBtn(n);
 }
 
@@ -876,7 +941,7 @@ function showPreview() {
   var date  = document.getElementById('shipDate').value;
   var code  = document.getElementById('orderCode').value.trim();
   var note  = document.getElementById('orderNote').value.trim();
-  var wh    = document.getElementById('warehouseSelect').value;
+  var wh    = getWarehouse();
   var trips = getTrips();
 
   if (!cust) { showToast('⚠️ Nhập tên khách hàng'); return; }
@@ -921,7 +986,7 @@ function showPreview() {
 
 function copyPreview() {
   var cust  = getCustomerName();
-  var wh    = document.getElementById('warehouseSelect').value;
+  var wh    = getWarehouse();
   var date  = document.getElementById('shipDate').value;
   var code  = document.getElementById('orderCode').value.trim();
   var note  = document.getElementById('orderNote').value.trim();
@@ -962,7 +1027,7 @@ function saveSheetUrl() {
   sheetUrl = url;
   localStorage.setItem('sheetUrl', url);
   setSheetStatus(true);
-  showToast('✅ Đã lưu URL!');
+  loadFromSheet(true);
 }
 
 function setSheetStatus(ok) {
@@ -974,7 +1039,7 @@ function setSheetStatus(ok) {
 async function saveToSheet() {
   if (!sheetUrl) { showToast('⚠️ Chưa cài Google Sheet URL'); document.getElementById('sheetCard').scrollIntoView({behavior:'smooth'}); return; }
   var cust  = getCustomerName();
-  var wh    = document.getElementById('warehouseSelect').value;
+  var wh    = getWarehouse();
   var date  = document.getElementById('shipDate').value;
   if (!cust || !date) { showToast('⚠️ Nhập đủ thông tin đơn hàng'); return; }
   var trips = getTrips();
