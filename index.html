@@ -75,9 +75,11 @@
   .btn-success { background: var(--success); color: #fff; }
   .btn-sm { padding: 7px 12px; font-size: 12px; }
   .custom-box { display:none; margin-top:8px; background:#f0f9ff; border:1.5px solid #bae6fd; border-radius:10px; padding:11px 12px; }
-  .custom-box .fg { margin-bottom:8px; }
-  .custom-box .fg:last-child { margin-bottom:0; }
-  .custom-box .fg label { font-size:11px; }
+  .custom-box .fg { margin-bottom:8px !important; }
+  .custom-box .fg:last-child { margin-bottom:0 !important; }
+  .custom-box .fg label { font-size:11px; color:var(--muted); }
+  .custom-box input { background:#fff !important; display:block !important; width:100% !important; }
+  .custom-box .row2 { display:grid !important; grid-template-columns:1fr 1fr; gap:8px; }
   .btn-success { background: var(--success); color: #fff; }
   .loading-spin { display:inline-block; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -227,12 +229,13 @@
 
     <!-- Đọc dữ liệu xe & lái xe -->
     <div style="border-top:1px solid var(--border);padding-top:14px">
-      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px">📥 Tải dữ liệu xe & lái xe từ Sheet</div>
-      <div style="font-size:11px;color:var(--muted);background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:9px;line-height:1.7;margin-bottom:8px">
-        ✅ Dùng chung <strong>Apps Script URL</strong> ở trên.<br>
-        Nhập URL 1 lần → vừa ghi đơn hàng, vừa tải xe & lái xe.
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px">📥 Sheet ID đọc dữ liệu xe & lái xe</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Lấy từ URL: sheets.google.com/d/<strong style="color:var(--primary)">SHEET_ID</strong>/edit</div>
+      <div id="dataStatus" class="sheet-status no"><span class="sdot"></span><span>Chưa kết nối sheet dữ liệu</span></div>
+      <div class="url-row" style="margin-top:8px">
+        <input type="text" id="dataSheetId" placeholder="Dán Google Sheet ID vào đây...">
+        <button class="btn btn-success btn-sm" onclick="saveDataSheetId()">Lưu</button>
       </div>
-      <div id="dataStatus" class="sheet-status no"><span class="sdot"></span><span>Chưa tải dữ liệu</span></div>
       <button class="btn btn-outline btn-sm" onclick="loadFromSheet(true)" style="margin-top:10px;width:100%;justify-content:center">
         🔄 Tải dữ liệu xe & lái xe từ Sheet
       </button>
@@ -357,7 +360,7 @@ let drivers = JSON.parse(localStorage.getItem('drivers') || '[]');
 
 // Dữ liệu mẫu nếu lần đầu dùng
 // ── Dữ liệu mặc định (tăng DATA_VERSION khi muốn reset cache) ──
-var DATA_VERSION = '2';
+var DATA_VERSION = '5';
 var DEFAULT_PLATES = [
   { id: 1,  plate: '29H-77696', type: '' },
   { id: 2,  plate: '29E-12900', type: '' },
@@ -381,6 +384,22 @@ var DEFAULT_DRIVERS = [
   { id: 9, name: 'Chành',              phone: '',           cccd: '' },
 ];
 
+var DEFAULT_WAREHOUSES = [
+  'Kho Hiệp phước',
+  'Kho AJ',
+  'Kho AG',
+  'Kho Lotte',
+  'Kho Satra',
+  'Kho Lutos Tân Kim',
+  'Kho E50',
+  'Kho Theo Lệch Xuất của kho',
+  'Kho Transimex',
+  'Kinder _Lê Văn Lương',
+  'Nhà Hàng_Phan Văn Trị',
+  'Nhà Hàng Tân Phú',
+  'Nhà Hàng Bình Dương',
+];
+
 // Nếu version cũ hoặc chưa có → reset về mặc định
 if (localStorage.getItem('dataVersion') !== DATA_VERSION || plates.length === 0) {
   plates = JSON.parse(JSON.stringify(DEFAULT_PLATES));
@@ -389,6 +408,10 @@ if (localStorage.getItem('dataVersion') !== DATA_VERSION || plates.length === 0)
 if (localStorage.getItem('dataVersion') !== DATA_VERSION || drivers.length === 0) {
   drivers = JSON.parse(JSON.stringify(DEFAULT_DRIVERS));
   saveDrivers();
+}
+if (localStorage.getItem('dataVersion') !== DATA_VERSION || warehouses.length === 0) {
+  warehouses = DEFAULT_WAREHOUSES.slice();
+  saveWarehouses();
   localStorage.setItem('dataVersion', DATA_VERSION);
 }
 
@@ -405,48 +428,7 @@ function resetToDefault() {
   showToast('✅ Đã khôi phục dữ liệu mặc định!');
 }
 
-const SCRIPT = `// ========== ĐỌC DỮ LIỆU ==========
-function doGet(e) {
-  try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var result = { SoXe: [], LaiXe: [], KhoBoc: [] };
-
-    var shXe = ss.getSheetByName('SoXe');
-    if (shXe) {
-      shXe.getDataRange().getValues().forEach(function(r) {
-        var plate = String(r[0]||'').trim().toUpperCase();
-        if (plate) result.SoXe.push({ plate: plate, type: String(r[1]||'').trim() });
-      });
-    }
-
-    var shLx = ss.getSheetByName('LaiXe');
-    if (shLx) {
-      shLx.getDataRange().getValues().forEach(function(r) {
-        var name = String(r[0]||'').trim();
-        if (name) result.LaiXe.push({ name: name, phone: String(r[1]||'').trim(), cccd: String(r[2]||'').trim() });
-      });
-    }
-
-    var shKho = ss.getSheetByName('KhoBoc');
-    if (shKho) {
-      shKho.getDataRange().getValues().forEach(function(r) {
-        var kho = String(r[0]||'').trim();
-        if (kho) result.KhoBoc.push(kho);
-      });
-    }
-
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: 'success', data: result }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch(err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: 'error', msg: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-// ========== GHI DỮ LIỆU ==========
-function doPost(e) {
+const SCRIPT = `function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -470,16 +452,28 @@ let warehouses  = JSON.parse(localStorage.getItem('warehouses') || '[]');
 
 window.onload = function() {
   document.getElementById('shipDate').value = new Date().toISOString().split('T')[0];
-  addTrip();
-  if (sheetUrl) {
-    document.getElementById('sheetUrl').value = sheetUrl;
-    setSheetStatus(true);
-    loadFromSheet(false);
-  }
   renderWarehouseSelect();
+  addTrip();
+  if (sheetUrl) { document.getElementById('sheetUrl').value = sheetUrl; setSheetStatus(true); }
+  renderWarehouseSelect();
+  if (dataSheetId) {
+    document.getElementById('dataSheetId').value = dataSheetId;
+    setDataStatus('connected', 'Đã kết nối — nhấn 🔄 để tải dữ liệu');
+    loadFromSheet(false); // auto-load silently on open
+  }
 };
 
-
+function saveDataSheetId() {
+  var id = document.getElementById('dataSheetId').value.trim();
+  // accept full URL or just ID
+  var match = id.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) id = match[1];
+  if (!id) { showToast('⚠️ Nhập Sheet ID'); return; }
+  dataSheetId = id;
+  localStorage.setItem('dataSheetId', id);
+  setDataStatus('connected', 'Đã lưu Sheet ID ✓');
+  showToast('✅ Đã lưu Sheet ID!');
+}
 
 function setDataStatus(state, msg) {
   var bar = document.getElementById('dataStatus');
@@ -489,30 +483,52 @@ function setDataStatus(state, msg) {
 }
 
 async function loadFromSheet(showFeedback) {
-  if (!sheetUrl) {
-    if (showFeedback) showToast('⚠️ Chưa nhập Apps Script URL');
-    setDataStatus('no', '⚠️ Cần nhập Apps Script URL trước');
-    return;
-  }
-  if (showFeedback) { setDataStatus('loading', '⏳ Đang tải...'); showToast('⏳ Đang tải dữ liệu...'); }
+  if (!dataSheetId) { if (showFeedback) showToast('⚠️ Chưa nhập Sheet ID'); return; }
+  if (showFeedback) { setDataStatus('loading', '⏳ Đang tải...'); showToast('⏳ Đang tải dữ liệu từ Sheet...'); }
+
+  var baseUrl = 'https://docs.google.com/spreadsheets/d/' + dataSheetId + '/gviz/tq?tqx=out:json&sheet=';
 
   try {
-    var res  = await fetch(sheetUrl);
-    var json = await res.json();
-    if (json.status !== 'success') throw new Error(json.msg || 'Lỗi không xác định');
+    // Load SoXe
+    var resXe = await fetch(baseUrl + 'SoXe');
+    var txtXe = await resXe.text();
+    var jsonXe = JSON.parse(txtXe.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+    var newPlates = [];
+    var rowsXe = jsonXe.table.rows || [];
+    rowsXe.forEach(function(row, i) {
+      var plate = row.c[0] && row.c[0].v ? String(row.c[0].v).trim().toUpperCase() : '';
+      var type  = row.c[1] && row.c[1].v ? String(row.c[1].v).trim() : '';
+      if (plate) newPlates.push({ id: Date.now() + i, plate: plate, type: type });
+    });
 
-    var d = json.data;
-    var newPlates = (d.SoXe || []).map(function(r, i) {
-      return { id: Date.now() + i, plate: r.plate, type: r.type };
+    // Load LaiXe
+    var resLx = await fetch(baseUrl + 'LaiXe');
+    var txtLx = await resLx.text();
+    var jsonLx = JSON.parse(txtLx.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+    var newDrivers = [];
+    var rowsLx = jsonLx.table.rows || [];
+    rowsLx.forEach(function(row, i) {
+      var name  = row.c[0] && row.c[0].v ? String(row.c[0].v).trim() : '';
+      var phone = row.c[1] && row.c[1].v ? String(row.c[1].v).trim() : '';
+      var cccd  = row.c[2] && row.c[2].v ? String(row.c[2].v).trim() : '';
+      if (name) newDrivers.push({ id: Date.now() + 1000 + i, name: name, phone: phone, cccd: cccd });
     });
-    var newDrivers = (d.LaiXe || []).map(function(r, i) {
-      return { id: Date.now() + 1000 + i, name: r.name, phone: r.phone, cccd: r.cccd };
-    });
-    var newWarehouses = d.KhoBoc || [];
+
+    // Load KhoBoc
+    var newWarehouses = [];
+    try {
+      var resKho = await fetch(baseUrl + 'KhoBoc');
+      var txtKho = await resKho.text();
+      var jsonKho = JSON.parse(txtKho.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+      (jsonKho.table.rows || []).forEach(function(row) {
+        var name = row.c[0] && row.c[0].v ? String(row.c[0].v).trim() : '';
+        if (name) newWarehouses.push(name);
+      });
+    } catch(e) { /* tab KhoBoc chưa có — bỏ qua */ }
 
     if (newPlates.length === 0 && newDrivers.length === 0) {
-      setDataStatus('no', '⚠️ Sheet chưa có dữ liệu — kiểm tra tab SoXe, LaiXe');
-      if (showFeedback) showToast('⚠️ Chưa có dữ liệu trong sheet');
+      if (showFeedback) showToast('⚠️ Không tìm thấy dữ liệu. Kiểm tra tên tab SoXe / LaiXe');
+      setDataStatus('no', 'Không có dữ liệu — kiểm tra tên tab Sheet');
       return;
     }
 
@@ -533,8 +549,9 @@ async function loadFromSheet(showFeedback) {
 
   } catch(err) {
     console.error(err);
-    setDataStatus('no', '❌ Lỗi kết nối Apps Script');
-    if (showFeedback) showToast('❌ Lỗi: ' + (err.message || 'Không kết nối được'));
+    var errMsg = 'Lỗi tải dữ liệu. Kiểm tra Sheet ID & quyền share';
+    setDataStatus('no', '❌ ' + errMsg);
+    if (showFeedback) showToast('❌ ' + errMsg);
   }
 }
 
@@ -576,7 +593,7 @@ function renderWarehouseSelect() {
   warehouses.forEach(function(w) {
     sel.innerHTML += '<option value="' + w + '">' + w + '</option>';
   });
-  sel.innerHTML += '<option value="__custom__">✏️ Tự ghi kho khác...</option>';
+  sel.innerHTML += '<option value="__wh_custom__">✏️ Tự ghi kho khác...</option>';
   if (cur) sel.value = cur;
 }
 
@@ -584,7 +601,7 @@ function onWarehouseChange() {
   var sel = document.getElementById('warehouseSelect');
   var inp = document.getElementById('warehouseCustom');
   if (!sel || !inp) return;
-  if (sel.value === '__custom__') {
+  if (sel.value === '__wh_custom__') {
     inp.style.display = '';
     inp.focus();
   } else {
@@ -596,7 +613,7 @@ function onWarehouseChange() {
 function getWarehouse() {
   var sel = document.getElementById('warehouseSelect');
   if (!sel) return '';
-  if (sel.value === '__custom__') {
+  if (sel.value === '__wh_custom__') {
     var inp = document.getElementById('warehouseCustom');
     return inp ? inp.value.trim() : '';
   }
@@ -769,7 +786,7 @@ function addTrip() {
       '<div class="custom-box" id="driverCusBox-' + n + '">' +
         '<div class="fg"><label>Tên tài xế</label><input type="text" id="dCusName-' + n + '" placeholder="Nguyễn Văn A"></div>' +
         '<div class="row2">' +
-          '<div class="fg"><label>Số điện thoại</label><input type="tel" id="dCusPhone-' + n + '" placeholder="0909..." inputmode="tel" onchange="updateCallBtnCus(' + n + ')"></div>' +
+          '<div class="fg"><label>Số điện thoại</label><input type="tel" id="dCusPhone-' + n + '" placeholder="0909..." inputmode="tel" oninput="updateCallBtnCus(' + n + ')"></div>' +
           '<div class="fg"><label>Số CCCD</label><input type="text" id="dCusCccd-' + n + '" placeholder="012345678901" inputmode="numeric" maxlength="12"></div>' +
         '</div>' +
       '</div>' +
@@ -810,7 +827,15 @@ function onDriverChange(n) {
   var sel = document.getElementById('selDriver-' + n);
   var box = document.getElementById('driverCusBox-' + n);
   if (!sel || !box) return;
-  box.style.display = sel.value === '__custom__' ? '' : 'none';
+  if (sel.value === '__custom__') {
+    box.style.display = 'block';
+    setTimeout(function() {
+      var inp = document.getElementById('dCusName-' + n);
+      if (inp) inp.focus();
+    }, 50);
+  } else {
+    box.style.display = 'none';
+  }
   updateCallBtn(n);
 }
 
