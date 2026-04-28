@@ -254,6 +254,7 @@
           <h3>➕ Thêm lái xe mới</h3>
           <div class="fg"><label>Tên lái xe *</label><input type="text" id="newDriver" placeholder="Nguyễn Văn A"></div>
           <div class="fg"><label>Số điện thoại *</label><input type="tel" id="newPhone" placeholder="0909090909" inputmode="tel"></div>
+          <div class="fg"><label>Số CCCD</label><input type="text" id="newCCCD" placeholder="0123456789012" inputmode="numeric" maxlength="12"></div>
           <button class="btn btn-primary" onclick="addDriver()" style="width:100%;justify-content:center">✓ Thêm lái xe</button>
         </div>
         <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:9px">Danh sách lái xe</div>
@@ -317,8 +318,8 @@ const SCRIPT = `function doPost(e) {
     if (os.getLastRow()===0) os.appendRow(['Ngay tao','Ma DH','Ten khach','Ngay vc','Ghi chu']);
     os.appendRow([new Date().toLocaleString('vi-VN'), data.orderCode||'', data.customerName, data.shipDate, data.orderNote||'']);
     var ts = ss.getSheetByName('ChuyenXe') || ss.insertSheet('ChuyenXe');
-    if (ts.getLastRow()===0) ts.appendRow(['Ngay tao','Ma DH','Khach','Chuyen','So xe','Loai xe','Tuyen','Lai xe','SDT','Gio','Ghi chu']);
-    data.trips.forEach(function(t,i){ ts.appendRow([new Date().toLocaleString('vi-VN'), data.orderCode||'', data.customerName, i+1, t.plate, t.type||'', t.route||'', t.driver, t.phone, t.time||'', t.note||'']); });
+    if (ts.getLastRow()===0) ts.appendRow(['Ngay tao','Ma DH','Khach','Chuyen','So xe','Loai xe','Tuyen','Lai xe','SDT','CCCD','Diem giao','Gio','Ghi chu']);
+    data.trips.forEach(function(t,i){ ts.appendRow([new Date().toLocaleString('vi-VN'), data.orderCode||'', data.customerName, i+1, t.plate, t.type||'', t.route||'', t.driver, t.phone, t.cccd||'', t.delivery||'', t.time||'', t.note||'']); });
     return ContentService.createTextOutput(JSON.stringify({status:'success'})).setMimeType(ContentService.MimeType.JSON);
   } catch(err) {
     return ContentService.createTextOutput(JSON.stringify({status:'error',msg:err.toString()})).setMimeType(ContentService.MimeType.JSON);
@@ -383,11 +384,13 @@ function delPlate(id) {
 function addDriver() {
   const name  = document.getElementById('newDriver').value.trim();
   const phone = document.getElementById('newPhone').value.trim();
+  const cccd  = document.getElementById('newCCCD').value.trim();
   if (!name || !phone) { showToast('⚠️ Nhập đủ tên và SĐT'); return; }
-  drivers.push({ id: Date.now(), name: name, phone: phone });
+  drivers.push({ id: Date.now(), name: name, phone: phone, cccd: cccd });
   saveDrivers();
   document.getElementById('newDriver').value = '';
   document.getElementById('newPhone').value  = '';
+  document.getElementById('newCCCD').value   = '';
   renderDrivers();
   refreshSelects('driver');
   updateManageCounts();
@@ -422,7 +425,7 @@ function renderDrivers() {
   drivers.forEach(function(d) {
     const div = document.createElement('div');
     div.className = 'list-item';
-    div.innerHTML = '<div class="list-item-info"><div class="list-name">👤 ' + d.name + '</div><div class="list-sub">📞 ' + d.phone + '</div></div><button class="btn-del" onclick="delDriver(' + d.id + ')">🗑</button>';
+    div.innerHTML = '<div class="list-item-info"><div class="list-name">👤 ' + d.name + '</div><div class="list-sub">📞 ' + d.phone + (d.cccd ? ' &nbsp;|&nbsp; 🪪 ' + d.cccd : '') + '</div></div><button class="btn-del" onclick="delDriver(' + d.id + ')">🗑</button>';
     el.appendChild(div);
   });
 }
@@ -497,6 +500,12 @@ function addTrip() {
       '<div class="fg" style="margin-bottom:0"><label>⏰ Giờ xuất phát</label><input type="time" id="time-' + n + '"></div>' +
     '</div>' +
 
+    // SỐ ĐIỂM GIAO
+    '<div class="fg" style="margin-top:10px;margin-bottom:0">' +
+      '<label>📦 Số điểm giao hàng</label>' +
+      '<input type="number" id="delivery-' + n + '" placeholder="VD: 3" min="1" inputmode="numeric" style="width:140px">' +
+    '</div>' +
+
     // GHI CHÚ
     '<div class="fg" style="margin-top:10px;margin-bottom:0">' +
       '<label>📝 Ghi chú chuyến</label>' +
@@ -551,9 +560,11 @@ function getTrips() {
       type:   p ? p.type  : '',
       driver: d ? d.name  : '',
       phone:  d ? d.phone : '',
-      route:  (document.getElementById('route-' + n) || {value:''}).value.trim(),
-      time:   (document.getElementById('time-'  + n) || {value:''}).value,
-      note:   (document.getElementById('note-'  + n) || {value:''}).value.trim()
+      route:    (document.getElementById('route-'    + n) || {value:''}).value.trim(),
+      time:     (document.getElementById('time-'     + n) || {value:''}).value,
+      delivery: (document.getElementById('delivery-' + n) || {value:''}).value.trim(),
+      cccd:     d ? (d.cccd || '') : '',
+      note:     (document.getElementById('note-'     + n) || {value:''}).value.trim()
     });
   });
   return trips;
@@ -585,7 +596,9 @@ function showPreview() {
         (t.time  ? '<div class="prow"><span class="plbl">⏰ Giờ xuất:</span><span>' + t.time + '</span></div>' : '') +
         '<div class="prow"><span class="plbl">👤 Lái xe:</span><span>' + t.driver + '</span></div>' +
         '<div class="prow"><span class="plbl">📞 Điện thoại:</span><strong style="color:var(--primary)">' + t.phone + '</strong></div>' +
-        (t.note ? '<div class="prow"><span class="plbl">📝 Ghi chú:</span><span>' + t.note + '</span></div>' : '') +
+        (t.cccd     ? '<div class="prow"><span class="plbl">🪪 CCCD:</span><span>' + t.cccd + '</span></div>' : '') +
+        (t.delivery ? '<div class="prow"><span class="plbl">📦 Điểm giao:</span><strong>' + t.delivery + ' điểm</strong></div>' : '') +
+        (t.note     ? '<div class="prow"><span class="plbl">📝 Ghi chú:</span><span>' + t.note + '</span></div>' : '') +
       '</div>';
   });
 
@@ -627,7 +640,9 @@ function copyPreview() {
     if (t.time)  lines.push('⏰ Giờ xuất: ' + t.time);
     lines.push('👤 Lái xe: ' + t.driver);
     lines.push('📞 ĐT: ' + t.phone);
-    if (t.note)  lines.push('📝 ' + t.note);
+    if (t.cccd)     lines.push('🪪 CCCD: ' + t.cccd);
+    if (t.delivery) lines.push('📦 Điểm giao: ' + t.delivery + ' điểm');
+    if (t.note)     lines.push('📝 ' + t.note);
   });
   lines.push('');
   lines.push('────────────────────────────');
