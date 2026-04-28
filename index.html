@@ -297,14 +297,19 @@ let drivers = JSON.parse(localStorage.getItem('drivers') || '[]');
 // Dữ liệu mẫu nếu lần đầu dùng
 if (plates.length === 0) {
   plates = [
-    { id: 1, plate: '51C-123.45', type: 'Xe tải 5T' },
-    { id: 2, plate: '51D-678.90', type: 'Container 20' },
+    { id: 1, plate: '29E11431', type: 'isuzu 2 Tấn' },
+    { id: 2, plate: '29H77696', type: 'hyundai 7 Tấn' },
+    { id: 3, plate: '29E12900', type: 'hyundai 3 Tấn' },
+    { id: 4, plate: '30M84876', type: 'Van 650kg' },
+      { id: 5, plate: '30M85015', type: 'Van 650kg' },
+      { id: 6, plate: '30M87069', type: 'Van 650kg' },
+      { id: 7, plate: '29C18487', type: 'hyundai 3 Tấn' },
   ];
   savePlates();
 }
 if (drivers.length === 0) {
   drivers = [
-    { id: 1, name: 'Nguyễn Văn An', phone: '0901234567' },
+    { id: 1, name: 'Trương Minh Nhật', phone: '0339091407',CCCD:'072099004044' },
     { id: 2, name: 'Trần Minh Tuấn', phone: '0912345678' },
   ];
   saveDrivers();
