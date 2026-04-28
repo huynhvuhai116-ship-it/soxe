@@ -452,18 +452,43 @@ function doGet(e) {
   }
 }
 
-// ===== GHI DỮ LIỆU =====
+// ===== GHI / SỬA DANH SÁCH & ĐƠN HÀNG =====
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss   = SpreadsheetApp.getActiveSpreadsheet();
+    var out  = ContentService.createTextOutput;
+    var JSON_TYPE = ContentService.MimeType.JSON;
+
+    // ── Thêm 1 dòng vào tab danh sách ──
+    if (data.action === 'addRow') {
+      var sh = ss.getSheetByName(data.sheet) || ss.insertSheet(data.sheet);
+      sh.appendRow(data.row);
+      return out(JSON.stringify({status:'success'})).setMimeType(JSON_TYPE);
+    }
+
+    // ── Xóa dòng khớp giá trị cột đầu ──
+    if (data.action === 'deleteRow') {
+      var sh2 = ss.getSheetByName(data.sheet);
+      if (sh2) {
+        var vals = sh2.getDataRange().getValues();
+        for (var i = vals.length - 1; i >= 0; i--) {
+          if (String(vals[i][0]).trim() === String(data.key).trim()) {
+            sh2.deleteRow(i + 1); break;
+          }
+        }
+      }
+      return out(JSON.stringify({status:'success'})).setMimeType(JSON_TYPE);
+    }
+
+    // ── Ghi đơn hàng (mặc định) ──
     var os = ss.getSheetByName('DonHang') || ss.insertSheet('DonHang');
     if (os.getLastRow()===0) os.appendRow(['Ngay tao','Ma DH','Ten khach','Kho boc','Ngay vc','Ghi chu']);
     os.appendRow([new Date().toLocaleString('vi-VN'), data.orderCode||'', data.customerName, data.warehouse||'', data.shipDate, data.orderNote||'']);
     var ts = ss.getSheetByName('ChuyenXe') || ss.insertSheet('ChuyenXe');
     if (ts.getLastRow()===0) ts.appendRow(['Ngay tao','Ma DH','Khach','Kho boc','Chuyen','So xe','Loai xe','Tuyen','Lai xe','SDT','CCCD','Diem giao','Gio','Ghi chu']);
     data.trips.forEach(function(t,i){ ts.appendRow([new Date().toLocaleString('vi-VN'),data.orderCode||'',data.customerName,data.warehouse||'',i+1,t.plate,t.type||'',t.route||'',t.driver,t.phone,t.cccd||'',t.delivery||'',t.time||'',t.note||'']); });
-    return ContentService.createTextOutput(JSON.stringify({status:'success'})).setMimeType(ContentService.MimeType.JSON);
+    return out(JSON.stringify({status:'success'})).setMimeType(JSON_TYPE);
   } catch(err) {
     return ContentService.createTextOutput(JSON.stringify({status:'error',msg:err.toString()})).setMimeType(ContentService.MimeType.JSON);
   }
@@ -560,22 +585,45 @@ function getCustomerName() {
 // ===== WAREHOUSES =====
 function saveWarehouses() { localStorage.setItem('warehouses', JSON.stringify(warehouses)); }
 
+// ── Ghi 1 dòng mới lên Sheet ──
+function sheetAddRow(sheetName, row) {
+  if (!sheetUrl) return;
+  fetch(sheetUrl, {
+    method:'POST', mode:'no-cors',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ action:'addRow', sheet: sheetName, row: row })
+  }).catch(function(){});
+}
+
+// ── Xóa dòng khớp key (cột A) trên Sheet ──
+function sheetDeleteRow(sheetName, key) {
+  if (!sheetUrl) return;
+  fetch(sheetUrl, {
+    method:'POST', mode:'no-cors',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ action:'deleteRow', sheet: sheetName, key: key })
+  }).catch(function(){});
+}
+
 function addKho() {
   var name = (document.getElementById('newKho') || {value:''}).value.trim();
   if (!name) { showToast('⚠️ Nhập tên kho'); return; }
   if (warehouses.indexOf(name) >= 0) { showToast('⚠️ Kho này đã có'); return; }
   warehouses.push(name);
   saveWarehouses();
+  sheetAddRow('KhoBoc', [name]);
   document.getElementById('newKho').value = '';
   renderKhoList(); renderWarehouseSelect(); updateManageCounts();
-  showToast('✅ Đã thêm: ' + name);
+  showToast('✅ Đã thêm & lưu lên Sheet: ' + name);
 }
 
 function delKho(i) {
+  var name = warehouses[i];
   warehouses.splice(i, 1);
   saveWarehouses();
+  if (name) sheetDeleteRow('KhoBoc', name);
   renderKhoList(); renderWarehouseSelect(); updateManageCounts();
-  showToast('🗑️ Đã xóa kho');
+  showToast('🗑️ Đã xóa kho & cập nhật Sheet');
 }
 
 function renderKhoList() {
@@ -655,21 +703,20 @@ function addPlate() {
   if (plates.find(function(p){ return p.plate === plate; })) { showToast('⚠️ Biển số này đã có'); return; }
   plates.push({ id: Date.now(), plate: plate, type: type });
   savePlates();
+  sheetAddRow('SoXe', [plate, type]);
   document.getElementById('newPlate').value = '';
   document.getElementById('newType').value  = '';
-  renderPlates();
-  refreshSelects('plate');
-  updateManageCounts();
-  showToast('✅ Đã thêm: ' + plate);
+  renderPlates(); refreshSelects('plate'); updateManageCounts();
+  showToast('✅ Đã thêm & lưu lên Sheet: ' + plate);
 }
 
 function delPlate(id) {
+  var found = plates.find(function(p){ return p.id === id; });
   plates = plates.filter(function(p){ return p.id !== id; });
   savePlates();
-  renderPlates();
-  refreshSelects('plate');
-  updateManageCounts();
-  showToast('🗑️ Đã xóa xe');
+  if (found) sheetDeleteRow('SoXe', found.plate);
+  renderPlates(); refreshSelects('plate'); updateManageCounts();
+  showToast('🗑️ Đã xóa xe & cập nhật Sheet');
 }
 
 function addDriver() {
@@ -679,22 +726,21 @@ function addDriver() {
   if (!name || !phone) { showToast('⚠️ Nhập đủ tên và SĐT'); return; }
   drivers.push({ id: Date.now(), name: name, phone: phone, cccd: cccd });
   saveDrivers();
+  sheetAddRow('LaiXe', [name, phone, cccd]);
   document.getElementById('newDriver').value = '';
   document.getElementById('newPhone').value  = '';
   document.getElementById('newCCCD').value   = '';
-  renderDrivers();
-  refreshSelects('driver');
-  updateManageCounts();
-  showToast('✅ Đã thêm: ' + name);
+  renderDrivers(); refreshSelects('driver'); updateManageCounts();
+  showToast('✅ Đã thêm & lưu lên Sheet: ' + name);
 }
 
 function delDriver(id) {
+  var found = drivers.find(function(d){ return d.id === id; });
   drivers = drivers.filter(function(d){ return d.id !== id; });
   saveDrivers();
-  renderDrivers();
-  refreshSelects('driver');
-  updateManageCounts();
-  showToast('🗑️ Đã xóa lái xe');
+  if (found) sheetDeleteRow('LaiXe', found.name);
+  renderDrivers(); refreshSelects('driver'); updateManageCounts();
+  showToast('🗑️ Đã xóa lái xe & cập nhật Sheet');
 }
 
 function renderPlates() {
