@@ -174,7 +174,10 @@
         <p>Nhập thông tin & gửi cho khách</p>
       </div>
     </div>
-    <button class="btn-manage" onclick="openManage()">⚙️ Danh sách</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn-manage" onclick="openJournal()" style="background:rgba(255,255,255,.1)">📋 Nhật ký</button>
+      <button class="btn-manage" onclick="openManage()">⚙️ Danh sách</button>
+    </div>
   </div>
 </header>
 
@@ -433,21 +436,37 @@ function resetToDefault() {
 const SCRIPT = `// ===== ĐỌC DỮ LIỆU (xe, lái xe, kho) =====
 function doGet(e) {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var res = { SoXe:[], LaiXe:[], KhoBoc:[] };
+    var ss   = SpreadsheetApp.getActiveSpreadsheet();
+    var type = e && e.parameter && e.parameter.type ? e.parameter.type : 'all';
+
+    // ── Trả dữ liệu nhật ký cho app Nhật Ký Điều Xe ──
+    if (type === 'journal') {
+      var res = { ChuyenXe: [] };
+      var sh  = ss.getSheetByName('ChuyenXe');
+      if (sh && sh.getLastRow() > 1) {
+        var vals = sh.getDataRange().getValues();
+        for (var i = 1; i < vals.length; i++) {
+          res.ChuyenXe.push(vals[i]);
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({status:'success',data:res})).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ── Trả danh sách xe, lái xe, kho cho app Đặt Xe ──
+    var res2 = { SoXe:[], LaiXe:[], KhoBoc:[] };
     var sXe = ss.getSheetByName('SoXe');
     if (sXe) sXe.getDataRange().getValues().forEach(function(r){
-      var p=String(r[0]||'').trim().toUpperCase(); if(p) res.SoXe.push({plate:p,type:String(r[1]||'').trim()});
+      var p=String(r[0]||'').trim().toUpperCase(); if(p) res2.SoXe.push({plate:p,type:String(r[1]||'').trim()});
     });
     var sLx = ss.getSheetByName('LaiXe');
     if (sLx) sLx.getDataRange().getValues().forEach(function(r){
-      var n=String(r[0]||'').trim(); if(n) res.LaiXe.push({name:n,phone:String(r[1]||'').trim(),cccd:String(r[2]||'').trim()});
+      var n=String(r[0]||'').trim(); if(n) res2.LaiXe.push({name:n,phone:String(r[1]||'').trim(),cccd:String(r[2]||'').trim()});
     });
     var sKho = ss.getSheetByName('KhoBoc');
     if (sKho) sKho.getDataRange().getValues().forEach(function(r){
-      var k=String(r[0]||'').trim(); if(k) res.KhoBoc.push(k);
+      var k=String(r[0]||'').trim(); if(k) res2.KhoBoc.push(k);
     });
-    return ContentService.createTextOutput(JSON.stringify({status:'success',data:res})).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({status:'success',data:res2})).setMimeType(ContentService.MimeType.JSON);
   } catch(err) {
     return ContentService.createTextOutput(JSON.stringify({status:'error',msg:err.toString()})).setMimeType(ContentService.MimeType.JSON);
   }
@@ -487,8 +506,8 @@ function doPost(e) {
     if (os.getLastRow()===0) os.appendRow(['Ngay tao','Ma DH','Ten khach','Kho boc','Ngay vc','Ghi chu']);
     os.appendRow([new Date().toLocaleString('vi-VN'), data.orderCode||'', data.customerName, data.warehouse||'', data.shipDate, data.orderNote||'']);
     var ts = ss.getSheetByName('ChuyenXe') || ss.insertSheet('ChuyenXe');
-    if (ts.getLastRow()===0) ts.appendRow(['Ngay tao','Ma DH','Khach','Kho boc','Chuyen','So xe','Loai xe','Tuyen','Lai xe','SDT','CCCD','Diem giao','Gio','Ghi chu']);
-    data.trips.forEach(function(t,i){ ts.appendRow([new Date().toLocaleString('vi-VN'),data.orderCode||'',data.customerName,data.warehouse||'',i+1,t.plate,t.type||'',t.route||'',t.driver,t.phone,t.cccd||'',t.delivery||'',t.time||'',t.note||'']); });
+    if (ts.getLastRow()===0) ts.appendRow(['Ngay tao','Ma DH','Khach','Kho boc','Ngay vc','Chuyen','So xe','Loai xe','Tuyen','Lai xe','SDT','CCCD','Diem giao','Gio','Ghi chu']);
+    data.trips.forEach(function(t,i){ ts.appendRow([new Date().toLocaleString('vi-VN'),data.orderCode||'',data.customerName,data.warehouse||'',data.shipDate||'',i+1,t.plate,t.type||'',t.route||'',t.driver,t.phone,t.cccd||'',t.delivery||'',t.time||'',t.note||'']); });
     return out(JSON.stringify({status:'success'})).setMimeType(JSON_TYPE);
   } catch(err) {
     return ContentService.createTextOutput(JSON.stringify({status:'error',msg:err.toString()})).setMimeType(ContentService.MimeType.JSON);
@@ -992,6 +1011,7 @@ function showPreview() {
 
   if (!cust) { showToast('⚠️ Nhập tên khách hàng'); return; }
   if (!date) { showToast('⚠️ Chọn ngày vận chuyển'); return; }
+  if (!date) { showToast('⚠️ Chọn ngày vận chuyển'); return; }
   for (var i = 0; i < trips.length; i++) {
     if (!trips[i].plate)  { showToast('⚠️ Chuyến ' + (i+1) + ': Chưa chọn số xe'); return; }
     if (!trips[i].driver) { showToast('⚠️ Chuyến ' + (i+1) + ': Chưa chọn lái xe'); return; }
@@ -1067,6 +1087,12 @@ function copyPreview() {
 }
 
 // ===== SHEET =====
+function openJournal() {
+  var url = localStorage.getItem('journalUrl') || '';
+  if (url) { window.open(url, '_blank'); }
+  else { showToast('⚠️ Chưa lưu link Nhật ký. Mở file nhat-ky-dieu-xe.html rồi quay lại.'); }
+}
+
 function saveSheetUrl() {
   var url = document.getElementById('sheetUrl').value.trim();
   if (!url) { showToast('⚠️ Nhập URL'); return; }
@@ -1087,7 +1113,8 @@ async function saveToSheet() {
   var cust  = getCustomerName();
   var wh    = getWarehouse();
   var date  = document.getElementById('shipDate').value;
-  if (!cust || !date) { showToast('⚠️ Nhập đủ thông tin đơn hàng'); return; }
+  if (!cust) { showToast('⚠️ Nhập tên khách hàng'); return; }
+  if (!date) { showToast('⚠️ Chọn ngày vận chuyển'); return; }
   var trips = getTrips();
   for (var i = 0; i < trips.length; i++) {
     if (!trips[i].plate || !trips[i].driver) { showToast('⚠️ Chuyến ' + (i+1) + ': Chưa chọn đủ'); return; }
