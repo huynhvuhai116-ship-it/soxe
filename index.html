@@ -475,7 +475,8 @@ tbody td{padding:8px 10px;vertical-align:middle}
 // ================================================================
 // CONFIG
 // ================================================================
-var SCRIPT_URL = localStorage.getItem('sheetUrl') || '';
+var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzBoHOzNyQs_VQEMNCAIgqsAQXVFYqCLDbdls5zeYjdwkyIwzzOG99XMycIZ8QcIaot/exec';
+localStorage.setItem('sheetUrl', SCRIPT_URL);
 
 // ================================================================
 // TAB SWITCHING
@@ -497,9 +498,10 @@ function showView(v) {
 // ██████████  BOOKING APP  ██████████
 // ================================================================
 var tripCount = 0;
-var plates     = JSON.parse(localStorage.getItem('plates')     || '[]');
-var drivers    = JSON.parse(localStorage.getItem('drivers')    || '[]');
-var warehouses = JSON.parse(localStorage.getItem('warehouses') || '[]');
+var plates, drivers, warehouses;
+try { plates = JSON.parse(localStorage.getItem('plates') || '[]'); } catch(e) { plates = []; }
+try { drivers = JSON.parse(localStorage.getItem('drivers') || '[]'); } catch(e) { drivers = []; }
+try { warehouses = JSON.parse(localStorage.getItem('warehouses') || '[]'); } catch(e) { warehouses = []; }
 
 var DATA_VERSION = '7';
 var DEFAULT_PLATES = [
@@ -537,7 +539,7 @@ window.onload = function() {
     setSheetStatus(true);
     loadFromSheet(false);
   }
-  updateHdrStatus('no','Chua ket noi — Nhap URL o tab Dieu xe');
+  if (!SCRIPT_URL) updateHdrStatus('no','Chua ket noi — Nhap URL o tab Dieu xe');
 };
 
 function setSheetStatus(ok) {
@@ -574,7 +576,7 @@ async function loadFromSheet(showFb) {
     var msg = 'Da tai: '+plates.length+' xe, '+drivers.length+' lai xe, '+warehouses.length+' kho';
     document.getElementById('b-dataStatus').className='sbar ok';
     document.getElementById('b-dataStatus').innerHTML='<span class="sdot"></span><span>'+msg+'</span>';
-    updateHdrStatus('ok', msg);
+    updateHdrStatus('ok', '✅ ' + msg);
     if (showFb) showToast(msg,'ok');
   } catch(err) {
     document.getElementById('b-dataStatus').className='sbar no';
