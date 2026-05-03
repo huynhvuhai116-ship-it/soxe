@@ -189,7 +189,7 @@ tbody td{padding:8px 10px;vertical-align:middle}
   <div class="hi">
     <div class="hl">
       <span style="font-size:24px">&#128666;</span>
-      <div class="ht"><h1>Quan Ly Xe — Nhat Lam</h1><p>Dieu xe & Nhat ky chuyen xe</p></div>
+      <div class="ht"><h1>Quan Ly Xe — Nhat Lam</h1><p>Dieu xe & Nhat ky chuyen xe <span style="background:#f59e0b;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:3px;vertical-align:middle">v3.0</span></p></div>
     </div>
     <div id="hdr-status" class="sbar no" style="margin:0;padding:5px 10px;font-size:11px">
       <span class="sdot"></span><span id="hdr-smsg">Dang ket noi...</span>
@@ -255,6 +255,7 @@ tbody td{padding:8px 10px;vertical-align:middle}
     <div style="margin-top:10px">
       <div id="b-dataStatus" class="sbar no" style="margin-bottom:7px"><span class="sdot"></span><span>Chua tai du lieu</span></div>
       <button class="btn btn-ol btn-sm" onclick="loadFromSheet(true)" style="width:100%;justify-content:center">&#128260; Tai lai du lieu tu Sheet</button>
+      <button class="btn btn-er btn-sm" onclick="clearAndReload()" style="width:100%;justify-content:center;margin-top:6px">&#128465; Xoa cache & Ket noi lai</button>
     </div>
     <div style="margin-top:10px">
       <button onclick="toggleGuide()" style="background:none;border:none;color:var(--pr);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">&#128216; Huong dan cai dat &#9660;</button>
@@ -928,6 +929,13 @@ function jExportCSV(){
 // ================================================================
 // SHARED UTILS
 // ================================================================
+function clearAndReload() {
+  if (!confirm('Xoa du lieu cache cu (so xe, lai xe) va ket noi lai?')) return;
+  localStorage.removeItem('plates'); localStorage.removeItem('drivers');
+  localStorage.removeItem('warehouses'); localStorage.removeItem('dataVersion');
+  localStorage.setItem('sheetUrl', SCRIPT_URL);
+  location.reload();
+}
 function closeModal(id){document.getElementById(id).classList.remove('show');}
 function escH(v){return String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function escA(v){return String(v||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
